@@ -81,6 +81,25 @@ Opciones del encoder en `logback.xml` (todas opcionales):
 
 Si la configuración es inválida, se reporta en el estado de Logback y se usan los valores seguros por defecto. Si el masking de un evento falla, el log se escribe igual, sin argumentos y con el campo `pragmaLogError`.
 
+## Campos y excepciones
+
+| Propiedad del encoder | Ejemplo | Descripción |
+|---|---|---|
+| `appName` | `orders-service` | Valor del campo `app`. |
+| `field` | `env=prod` | Campo fijo en todos los eventos; se puede repetir. |
+| `hideFields` | `thread,internalId` | Oculta campos estándar, fijos, de MDC o key-values. |
+| `renameField` | `level=severity` | Renombra cualquier campo; se puede repetir. |
+| `includeStacktrace` | `false` | Sin stack trace; se mantiene el resumen `error`. Default `true`. |
+| `stacktraceMaxDepth` | `30` | Frames por excepción de la cadena. Default `50`. |
+| `stacktraceMaxLength` | `8000` | Caracteres máximos del stack trace. Default `16384`. |
+| `stacktraceRootCauseFirst` | `true` | Escribe primero la causa raíz. Default `false`. |
+
+Cuando se loguea una excepción, además del `stacktrace` sale un resumen fácil de buscar:
+
+```json
+"error":{"type":"java.lang.IllegalStateException","message":"Gateway timeout","rootCause":"java.net.SocketTimeoutException: Read timed out"}
+```
+
 ## Módulos
 
 | Módulo | Contenido |
@@ -89,6 +108,7 @@ Si la configuración es inválida, se reporta en el estado de Logback y se usan 
 | `pragma-log-logback` | Encoder JSON para Logback, construido sobre logstash-logback-encoder. |
 | `pragma-log-bom` | Alinea las versiones de todos los módulos. |
 | `examples/plain-java` | App de ejemplo (no se publica). |
+| `benchmarks` | Benchmarks JMH (no se publica). Ver [rendimiento](docs/relanzamiento/04-rendimiento.md). |
 
 Próximos: `pragma-log-spring-boot-starter` (MVC y WebFlux) y `pragma-log-quarkus`.
 

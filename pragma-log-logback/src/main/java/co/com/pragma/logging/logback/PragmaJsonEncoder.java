@@ -15,7 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import net.logstash.logback.encoder.LogstashEncoder;
-import net.logstash.logback.fieldnames.LogstashFieldNames;
+import net.logstash.logback.stacktrace.ShortenedThrowableConverter;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -32,12 +32,19 @@ import tools.jackson.databind.json.JsonMapper;
  *   <maskFields>password,cardNumber,documentId</maskFields>
  *   <maskCharacter>*</maskCharacter>
  *   <maskStrategy>EMAIL=com.acme.EmailMaskingStrategy</maskStrategy>
+ *   <!-- optional field layout -->
+ *   <field>env=prod</field>
+ *   <hideFields>thread</hideFields>
+ *   <renameField>level=severity</renameField>
+ *   <!-- optional exception settings -->
+ *   <stacktraceMaxDepth>30</stacktraceMaxDepth>
  * </encoder>
  * }</pre>
  */
 public class PragmaJsonEncoder extends LogstashEncoder {
 
-    private static final String IGNORE = "[ignore]";
+    static final int DEFAULT_STACKTRACE_MAX_DEPTH = 50;
+    static final int DEFAULT_STACKTRACE_MAX_LENGTH = 16_384;
 
     private String appName = PragmaLogSettings.DEFAULT_APP_NAME;
     private boolean maskingEnabled = true;
@@ -47,8 +54,15 @@ public class PragmaJsonEncoder extends LogstashEncoder {
     private Set<String> maskFields = MaskingSettings.DEFAULT_FIELDS;
     private int maskMaxDepth = MaskingSettings.DEFAULT_MAX_DEPTH;
     private final Map<String, String> maskStrategies = new LinkedHashMap<>();
+    private final Map<String, String> fixedFields = new LinkedHashMap<>();
+    private final FieldLayout layout = new FieldLayout();
+    private boolean includeStacktrace = true;
+    private int stacktraceMaxDepth = DEFAULT_STACKTRACE_MAX_DEPTH;
+    private int stacktraceMaxLength = DEFAULT_STACKTRACE_MAX_LENGTH;
+    private boolean stacktraceRootCauseFirst;
 
     private EventMasker eventMasker;
+    private ErrorJsonProvider errorProvider;
 
     public void setAppName(String appName) {
         this.appName = appName;
@@ -92,21 +106,70 @@ public class PragmaJsonEncoder extends LogstashEncoder {
 
     /** Registers a custom strategy as {@code NAME=fully.qualified.ClassName}; may be repeated. */
     public void addMaskStrategy(String definition) {
-        int separator = definition == null ? -1 : definition.indexOf('=');
-        if (separator <= 0 || separator == definition.length() - 1) {
-            addError("pragma-log: maskStrategy must look like NAME=fully.qualified.ClassName, got '"
-                    + definition + "'");
-            return;
+        String[] pair = splitPair("maskStrategy", definition);
+        if (pair != null) {
+            maskStrategies.put(pair[0], pair[1]);
         }
-        maskStrategies.put(definition.substring(0, separator).trim(), definition.substring(separator + 1).trim());
+    }
+
+    /** Fixed field as {@code name=value}, e.g. {@code env=prod}; may be repeated (FLD-05). */
+    public void addField(String definition) {
+        String[] pair = splitPair("field", definition);
+        if (pair != null) {
+            fixedFields.put(pair[0], pair[1]);
+        }
+    }
+
+    /** Comma-separated names of fields to remove: standard, fixed, MDC or key-value fields (FLD-02). */
+    public void setHideFields(String hideFields) {
+        Arrays.stream(hideFields.split(","))
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .forEach(layout::hide);
+    }
+
+    /** Renames a field as {@code current=new}, e.g. {@code level=severity}; may be repeated (FLD-03). */
+    public void addRenameField(String definition) {
+        String[] pair = splitPair("renameField", definition);
+        if (pair != null) {
+            layout.rename(pair[0], pair[1]);
+        }
+    }
+
+    /** When {@code false}, only the {@code error} summary is written, without the stack trace (ERR-01). */
+    public void setIncludeStacktrace(boolean includeStacktrace) {
+        this.includeStacktrace = includeStacktrace;
+    }
+
+    /** Maximum frames written per exception in the chain (ERR-03). */
+    public void setStacktraceMaxDepth(int stacktraceMaxDepth) {
+        this.stacktraceMaxDepth = stacktraceMaxDepth;
+    }
+
+    /** Maximum characters of the whole stack trace (ERR-03). */
+    public void setStacktraceMaxLength(int stacktraceMaxLength) {
+        this.stacktraceMaxLength = stacktraceMaxLength;
+    }
+
+    public void setStacktraceRootCauseFirst(boolean stacktraceRootCauseFirst) {
+        this.stacktraceRootCauseFirst = stacktraceRootCauseFirst;
     }
 
     @Override
     public void start() {
         PragmaLogSettings settings = new PragmaLogSettings(appName, buildMaskingSettings());
         eventMasker = new EventMasker(new LogMasker(settings.masking()));
-        applySchemaFieldNames(getFieldNames());
-        setCustomFields(JsonMapper.shared().writeValueAsString(Map.of(StandardFields.APP, settings.appName())));
+        if (!includeStacktrace) {
+            layout.hide(StandardFields.STACKTRACE);
+        }
+        layout.applyTo(this);
+        setCustomFields(JsonMapper.shared().writeValueAsString(customFields(settings.appName())));
+        setThrowableConverter(throwableConverter());
+        if (errorProvider == null && !layout.isHidden(StandardFields.ERROR)) {
+            errorProvider = new ErrorJsonProvider();
+            errorProvider.setFieldName(layout.nameOf(StandardFields.ERROR));
+            addProvider(errorProvider);
+        }
         super.start();
     }
 
@@ -156,14 +219,35 @@ public class PragmaJsonEncoder extends LogstashEncoder {
         return strategies;
     }
 
-    private static void applySchemaFieldNames(LogstashFieldNames names) {
-        names.setTimestamp(StandardFields.TIMESTAMP);
-        names.setLevel(StandardFields.LEVEL);
-        names.setLogger(StandardFields.LOGGER);
-        names.setThread(StandardFields.THREAD);
-        names.setMessage(StandardFields.MESSAGE);
-        names.setStackTrace(StandardFields.STACKTRACE);
-        names.setVersion(IGNORE);
-        names.setLevelValue(IGNORE);
+    private Map<String, String> customFields(String app) {
+        Map<String, String> fields = new LinkedHashMap<>();
+        if (!layout.isHidden(StandardFields.APP)) {
+            fields.put(layout.nameOf(StandardFields.APP), app);
+        }
+        fixedFields.forEach((name, value) -> {
+            if (!layout.isHidden(name)) {
+                fields.put(layout.nameOf(name), value);
+            }
+        });
+        return fields;
+    }
+
+    private ShortenedThrowableConverter throwableConverter() {
+        ShortenedThrowableConverter converter = new ShortenedThrowableConverter();
+        converter.setMaxDepthPerThrowable(stacktraceMaxDepth);
+        converter.setMaxLength(stacktraceMaxLength);
+        converter.setRootCauseFirst(stacktraceRootCauseFirst);
+        converter.setOmitCommonFrames(true);
+        return converter;
+    }
+
+    /** Parses {@code name=value}; reports and returns {@code null} when malformed. */
+    private String[] splitPair(String property, String definition) {
+        int separator = definition == null ? -1 : definition.indexOf('=');
+        if (separator <= 0 || separator == definition.length() - 1) {
+            addError("pragma-log: " + property + " must look like name=value, got '" + definition + "'");
+            return null;
+        }
+        return new String[] {definition.substring(0, separator).trim(), definition.substring(separator + 1).trim()};
     }
 }

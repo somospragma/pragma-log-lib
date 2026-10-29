@@ -100,7 +100,8 @@ Ver [03-decisiones-arquitectura.md](03-decisiones-arquitectura.md). Aceptadas: l
 2. **E1 — Esqueleto (hecho 2026-10-29):** Gradle multi-módulo (`core`, `logback`, `bom`, `examples/plain-java`), version catalog, convention plugins, CI en Java 17/21, configuración de publicación a Central (sin publicar). Encoder JSON mínimo funcionando de punta a punta. Los módulos `spring-boot-starter` y `quarkus` se crean en su entrega, no como cascarones vacíos.
 3. **E2 — Java puro → `0.1.0`:** JSON + esquema + MDC + key-values + masking completo (MSK-01..09) + fallback (ALR-05), con app de ejemplo.
    - *Hecho (2026-10-29):* masking MSK-01..09 sobre Jackson 3 (anotación, nombres, mapas, records, herencia, ciclos, profundidad, estrategias custom), masking de `{}`/MDC/key-values en el encoder, fallback ALR-05, config inválida → defaults seguros (CFG-05), tests de regresión de los 6 bugs.
-   - *Falta:* ocultar/renombrar campos (FLD-02/03), stacktrace configurable (ERR-01/03), campos fijos (FLD-05), JMH inicial.
+   - *Hecho (2026-10-29):* ocultar/renombrar cualquier campo (FLD-02/03), campos fijos (FLD-05), stacktrace configurable y acotado (ERR-01/03), resumen `error` con causa raíz (ERR-02/04), JMH inicial ([04-rendimiento.md](04-rendimiento.md)).
+   - *Funcionalmente completa.* Para publicar `0.1.0` faltan el groupId (ADR-05), la licencia y el flujo de release a Central.
 4. **E3 — Spring MVC → `0.2.0`:** starter, `@ConfigurationProperties`, filtro HTTP, trazas (CTX-01).
 5. **E4 — WebFlux → `0.3.0`:** propagación de contexto reactivo (spike ADR-12 al inicio).
 6. **E5 — Quarkus → `0.4.0`:** spike ADR-11 + extensión.

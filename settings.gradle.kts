@@ -16,4 +16,5 @@ include(
     "pragma-log-core",
     "pragma-log-logback",
     "examples:plain-java",
+    "benchmarks",
 )

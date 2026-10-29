@@ -50,7 +50,7 @@ final class EventMasker {
     }
 
     private Map<String, String> maskMdc(Map<String, String> mdc) {
-        if (mdc == null || mdc.isEmpty() || mdc.keySet().stream().noneMatch(masker::isSensitiveName)) {
+        if (mdc == null || mdc.isEmpty() || !hasSensitiveKey(mdc)) {
             return mdc;
         }
         Map<String, String> masked = new LinkedHashMap<>(mdc.size());
@@ -62,6 +62,15 @@ final class EventMasker {
             }
         });
         return masked;
+    }
+
+    private boolean hasSensitiveKey(Map<String, String> mdc) {
+        for (String key : mdc.keySet()) {
+            if (masker.isSensitiveName(key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<KeyValuePair> maskKeyValuePairs(List<KeyValuePair> pairs) {

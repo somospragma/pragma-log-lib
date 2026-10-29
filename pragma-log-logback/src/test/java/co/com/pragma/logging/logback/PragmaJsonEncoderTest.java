@@ -184,6 +184,149 @@ class PragmaJsonEncoderTest {
     }
 
     @Nested
+    @DisplayName("field layout")
+    class FieldLayoutTests {
+
+        @Test
+        @DisplayName("fixed fields are added to every event (FLD-05)")
+        void fixedFields() {
+            startEncoder(e -> {
+                e.addField("env=prod");
+                e.addField("team=payments");
+            });
+
+            JsonNode json = encode(event("Hello"));
+
+            assertThat(json.get("env").asString()).isEqualTo("prod");
+            assertThat(json.get("team").asString()).isEqualTo("payments");
+        }
+
+        @Test
+        @DisplayName("standard, fixed, MDC and key-value fields can be hidden (FLD-02)")
+        void hideFields() {
+            startEncoder(e -> {
+                e.addField("env=prod");
+                e.setHideFields("thread, app, env, internalId, debugInfo");
+            });
+            LoggingEvent event = eventWithMdc(Map.of("internalId", "x", "requestId", "r"), "Hello");
+            event.setKeyValuePairs(List.of(new KeyValuePair("debugInfo", "y")));
+
+            JsonNode json = encode(event);
+
+            assertThat(json.has("thread")).isFalse();
+            assertThat(json.has("app")).isFalse();
+            assertThat(json.has("env")).isFalse();
+            assertThat(json.has("internalId")).isFalse();
+            assertThat(json.has("debugInfo")).isFalse();
+            assertThat(json.get("requestId").asString()).isEqualTo("r");
+        }
+
+        @Test
+        @DisplayName("standard, fixed, MDC and key-value fields can be renamed (FLD-03)")
+        void renameFields() {
+            startEncoder(e -> {
+                e.addField("env=prod");
+                e.addRenameField("level=severity");
+                e.addRenameField("app=service.name");
+                e.addRenameField("env=deployment.environment");
+                e.addRenameField("requestId=request_id");
+                e.addRenameField("orderId=order_id");
+            });
+            LoggingEvent event = eventWithMdc(Map.of("requestId", "r"), "Hello");
+            event.setKeyValuePairs(List.of(new KeyValuePair("orderId", "o")));
+
+            JsonNode json = encode(event);
+
+            assertThat(json.get("severity").asString()).isEqualTo("INFO");
+            assertThat(json.get("service.name").asString()).isEqualTo("orders-service");
+            assertThat(json.get("deployment.environment").asString()).isEqualTo("prod");
+            assertThat(json.get("request_id").asString()).isEqualTo("r");
+            assertThat(json.get("order_id").asString()).isEqualTo("o");
+            assertThat(json.has("level")).isFalse();
+        }
+
+        @Test
+        @DisplayName("malformed definitions are reported, not applied")
+        void malformedDefinitions() {
+            startEncoder(e -> {
+                e.addField("noEquals");
+                e.addRenameField("level=");
+            });
+
+            JsonNode json = encode(event("Hello"));
+
+            assertThat(json.get("level").asString()).isEqualTo("INFO");
+            assertThat(errors()).anyMatch(s -> s.getMessage().contains("field must look like name=value"));
+            assertThat(errors()).anyMatch(s -> s.getMessage().contains("renameField must look like name=value"));
+        }
+    }
+
+    @Nested
+    @DisplayName("exceptions")
+    class Exceptions {
+
+        private final IllegalStateException failure =
+                new IllegalStateException("Gateway timeout", new java.net.SocketTimeoutException("Read timed out"));
+
+        @Test
+        @DisplayName("an error summary with the root cause is written (ERR-02, ERR-04)")
+        void errorSummary() {
+            startEncoder();
+
+            JsonNode error = encode(errorEvent()).get("error");
+
+            assertThat(error.get("type").asString()).isEqualTo("java.lang.IllegalStateException");
+            assertThat(error.get("message").asString()).isEqualTo("Gateway timeout");
+            assertThat(error.get("rootCause").asString()).isEqualTo("java.net.SocketTimeoutException: Read timed out");
+        }
+
+        @Test
+        @DisplayName("the stack trace is written by default, with masking enabled (ERR-01 legacy bug)")
+        void stacktraceByDefault() {
+            startEncoder();
+
+            JsonNode json = encode(errorEvent());
+
+            assertThat(json.get("stacktrace").asString())
+                    .startsWith("java.lang.IllegalStateException: Gateway timeout")
+                    .contains("Caused by: java.net.SocketTimeoutException");
+        }
+
+        @Test
+        @DisplayName("includeStacktrace=false keeps only the summary (ERR-01)")
+        void withoutStacktrace() {
+            startEncoder(e -> e.setIncludeStacktrace(false));
+
+            JsonNode json = encode(errorEvent());
+
+            assertThat(json.has("stacktrace")).isFalse();
+            assertThat(json.get("error").get("type").asString()).isEqualTo("java.lang.IllegalStateException");
+        }
+
+        @Test
+        @DisplayName("the stack trace length is bounded (ERR-03)")
+        void boundedStacktrace() {
+            startEncoder(e -> e.setStacktraceMaxLength(120));
+
+            assertThat(encode(errorEvent()).get("stacktrace").asString()).hasSizeLessThanOrEqualTo(120);
+        }
+
+        @Test
+        @DisplayName("events without exception have no error field")
+        void noErrorField() {
+            startEncoder();
+
+            assertThat(encode(event("Fine")).has("error")).isFalse();
+        }
+
+        private LoggingEvent errorEvent() {
+            LoggingEvent event = new LoggingEvent(Logger.FQCN, logger, Level.ERROR, "Payment failed", failure, null);
+            event.setMDCPropertyMap(Map.of());
+            return event;
+        }
+    }
+
+    @Nested
     @DisplayName("resilience")
     class Resilience {
 
