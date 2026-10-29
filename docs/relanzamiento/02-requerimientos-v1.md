@@ -106,6 +106,8 @@ Ver [03-decisiones-arquitectura.md](03-decisiones-arquitectura.md). Aceptadas: l
    - *Hecho (2026-10-29):* starter sin XML, activado como formato de *structured logging* de Spring Boot; `pragma.log.*` con metadata para el IDE; `app` desde `spring.application.name`; filtro HTTP con `requestId` (seguro contra inyección), método, path y headers en lista permitida, restaurando el MDC previo; `format: plain` para local; config inválida detiene el arranque; compatibilidad Boot 3.5 y 4.x probada en cada build (spike ADR-12); app de ejemplo.
    - *Pendiente / no verificado:* `traceId`/`spanId` con Micrometer Tracing no tiene test propio (se apoya en el MDC que escribe Micrometer); status y duración del request (ENR-01) no se agregan todavía.
 5. **E4 — WebFlux → `0.3.0`:** propagación de contexto reactivo (spike ADR-12 al inicio).
+   - *Hecho (2026-10-29):* `WebFilter` que pone el contexto del request en el Reactor Context; `ThreadLocalAccessor` (context-propagation) que lo copia al MDC en cada hilo, tocando solo sus claves; propagación automática activada por el starter. Tests contra Boot 4.1 y 3.5: el contexto sobrevive a cambios de hilo, no se mezcla entre 30 requests concurrentes y no queda pegado después del request. Se verificó que los tests fallan sin el accessor. App de ejemplo.
+   - *Nota:* la propagación automática tiene un costo por operador; no está medido todavía con JMH.
 6. **E5 — Quarkus → `0.4.0`:** spike ADR-11 + extensión.
 7. **E6 — SHOULDs + JMH + docs → `1.0.0`** en Maven Central.
 

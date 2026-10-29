@@ -7,18 +7,22 @@ description = "Spring Boot starter of pragma-log: JSON logs, masking and HTTP co
 
 dependencies {
     api(project(":pragma-log-logback"))
+    // Carries the request context (MDC) across Reactor threads in WebFlux (ADR-10).
+    implementation(libs.context.propagation)
 
     // Provided by the application; versions come from its Spring Boot BOM.
     compileOnly(platform(libs.spring.boot.bom))
     compileOnly(libs.spring.boot.autoconfigure)
     compileOnly(libs.spring.web)
     compileOnly(libs.jakarta.servlet.api)
+    compileOnly(libs.reactor.core)
     annotationProcessor(platform(libs.spring.boot.bom))
     annotationProcessor(libs.spring.boot.configuration.processor)
 
     testImplementation(platform(libs.spring.boot.bom))
     testImplementation(libs.spring.boot.starter.web)
     testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.spring.boot.starter.webflux)
 }
 
 // Compatibility (ADR-12): run the same tests against Spring Boot 3.x, which uses Jackson 2.
@@ -33,6 +37,8 @@ dependencies {
     "boot3TestImplementation"(platform(libs.spring.boot3.bom))
     "boot3TestImplementation"(libs.spring.boot.starter.web)
     "boot3TestImplementation"(libs.spring.boot.starter.test)
+    "boot3TestImplementation"(libs.spring.boot.starter.webflux)
+    "boot3TestImplementation"(libs.context.propagation)
     "boot3TestRuntimeOnly"(libs.junit.launcher)
 }
 

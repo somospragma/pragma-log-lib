@@ -1,5 +1,6 @@
 package co.com.pragma.logging.spring;
 
+import io.micrometer.context.ThreadLocalAccessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -11,6 +12,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.server.WebFilter;
+import reactor.core.publisher.Hooks;
 
 /**
  * Auto-configuration of pragma-log. The JSON log format itself is switched on earlier, by
@@ -32,6 +35,23 @@ public class PragmaLogAutoConfiguration {
         @Order(Ordered.HIGHEST_PRECEDENCE + 10)
         PragmaLogContextFilter pragmaLogContextFilter(PragmaLogProperties properties) {
             return new PragmaLogContextFilter(properties.getHttp());
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.REACTIVE)
+    @ConditionalOnClass({WebFilter.class, Hooks.class, ThreadLocalAccessor.class})
+    @ConditionalOnProperty(prefix = PragmaLogProperties.PREFIX + ".http", name = "enabled", matchIfMissing = true)
+    static class ReactiveContextConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        @Order(Ordered.HIGHEST_PRECEDENCE + 10)
+        PragmaLogContextWebFilter pragmaLogContextWebFilter(PragmaLogProperties properties) {
+            // Restores the Reactor Context into ThreadLocals (MDC) on every operator, like
+            // spring.reactor.context-propagation=auto; required for the request context to reach the logs.
+            Hooks.enableAutomaticContextPropagation();
+            return new PragmaLogContextWebFilter(properties.getHttp());
         }
     }
 }

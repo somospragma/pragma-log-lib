@@ -6,7 +6,7 @@ Librería de logging estructurado para servicios Java de Pragma. Sigues usando S
 > Requerimientos y decisiones: [docs/relanzamiento](docs/relanzamiento/).
 > La implementación anterior está en las ramas `legacy/libs` y `legacy/nexus`.
 
-## Uso rápido (Spring Boot 3.5+ / 4.x)
+## Uso rápido (Spring Boot 3.5+ / 4.x, MVC y WebFlux)
 
 Solo la dependencia. No hace falta `logback-spring.xml`:
 
@@ -35,6 +35,8 @@ pragma:
     # format: plain   # salida de consola normal de Spring (sin masking), útil en local
     # enabled: false  # apaga la librería
 ```
+
+**WebFlux:** funciona igual. El contexto del request viaja en el Reactor Context y aparece en los logs aunque el código cambie de hilo (`delayElement`, `publishOn`, llamadas no bloqueantes), sin `block()` ni ThreadLocals manuales. Para eso el starter activa la propagación automática de contexto de Reactor (equivale a `spring.reactor.context-propagation=auto`).
 
 El IDE autocompleta todas las propiedades `pragma.log.*`. Una configuración inválida detiene el arranque con un mensaje claro.
 
@@ -140,13 +142,14 @@ Cuando se loguea una excepción, además del `stacktrace` sale un resumen fácil
 |---|---|
 | `pragma-log-core` | Esquema de campos, configuración y masking (sobre Jackson 3). Sin dependencias de framework. |
 | `pragma-log-logback` | Encoder JSON para Logback, construido sobre logstash-logback-encoder. |
-| `pragma-log-spring-boot-starter` | Auto-configuración para Spring Boot 3.5+ y 4.x (MVC). Probado contra ambas versiones en cada build. |
+| `pragma-log-spring-boot-starter` | Auto-configuración para Spring Boot 3.5+ y 4.x, MVC y WebFlux. Probado contra ambas versiones en cada build. |
 | `pragma-log-bom` | Alinea las versiones de todos los módulos (y `jackson-annotations`). |
 | `examples/plain-java` | App de ejemplo Java puro (no se publica). |
 | `examples/spring-mvc` | App de ejemplo Spring Boot MVC (no se publica). |
+| `examples/spring-webflux` | App de ejemplo Spring Boot WebFlux (no se publica). |
 | `benchmarks` | Benchmarks JMH (no se publica). Ver [rendimiento](docs/relanzamiento/04-rendimiento.md). |
 
-Próximos: soporte WebFlux en el starter y `pragma-log-quarkus`.
+Próximo: `pragma-log-quarkus`.
 
 ## Desarrollo
 

@@ -18,5 +18,6 @@ include(
     "pragma-log-spring-boot-starter",
     "examples:plain-java",
     "examples:spring-mvc",
+    "examples:spring-webflux",
     "benchmarks",
 )
