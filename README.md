@@ -38,11 +38,54 @@ log.atInfo().addKeyValue("orderId", "ORD-9").log("Order placed");
 {"timestamp":"2026-10-29T17:14:02.413-05:00","message":"Order placed","logger":"com.acme.Orders","thread":"main","level":"INFO","requestId":"req-123","orderId":"ORD-9","app":"my-service"}
 ```
 
+## Enmascaramiento de datos sensibles
+
+Todo objeto que llega al log pasa por masking: en el `{}` del mensaje, en los key-values y en el MDC. Nunca se usa `toString()` y el objeto original no se modifica.
+
+**Por anotación**, en cualquier tipo de campo (también heredados y en records):
+
+```java
+record Customer(
+        String name,
+        @MaskedLogField(type = MaskType.MIDDLE, length = 4) String cardNumber,
+        @MaskedLogField(type = MaskType.HIDDEN) String cvv) {}
+```
+
+**Por nombre**, sin anotación (clases de terceros, mapas, MDC, key-values). Por defecto: `password`, `secret`, `token`, `accessToken`, `apiKey`, `authorization`, `cardNumber`, `cvv`, entre otros. Se ignoran mayúsculas y separadores: `access_token` = `accessToken`.
+
+```
+log.info("Customer registered: {}", customer);
+→ "message":"Customer registered: {\"name\":\"Ana\",\"cardNumber\":\"4111********1111\",\"password\":\"******\"}"
+```
+
+| Tipo | Ejemplo (`length = 4`) |
+|---|---|
+| `FULL` (default) | `password` → `********` |
+| `PREFIX` | `secret123` → `****et123` |
+| `SUFFIX` | `secret123` → `secre****` |
+| `MIDDLE` | `4111111111111111` → `4111********1111` |
+| `HIDDEN` | el campo no aparece |
+| `CUSTOM` | estrategia propia registrada por nombre |
+
+Opciones del encoder en `logback.xml` (todas opcionales):
+
+| Propiedad | Default | Descripción |
+|---|---|---|
+| `maskingEnabled` | `true` | Activa o desactiva todo el masking. |
+| `maskCharacter` | `*` | Carácter de máscara. |
+| `maskDefaultType` | `FULL` | Tipo aplicado a los campos enmascarados por nombre. |
+| `maskDefaultLength` | `4` | Longitud cuando la anotación no la define. |
+| `maskFields` | lista segura | Nombres separados por coma; **reemplaza** la lista por defecto. |
+| `maskMaxDepth` | `10` | Profundidad máxima de objetos anidados. |
+| `maskStrategy` | — | `NOMBRE=com.acme.MiEstrategia`; se puede repetir. |
+
+Si la configuración es inválida, se reporta en el estado de Logback y se usan los valores seguros por defecto. Si el masking de un evento falla, el log se escribe igual, sin argumentos y con el campo `pragmaLogError`.
+
 ## Módulos
 
 | Módulo | Contenido |
 |---|---|
-| `pragma-log-core` | Esquema de campos, configuración y (próximamente) masking. Sin dependencias de framework. |
+| `pragma-log-core` | Esquema de campos, configuración y masking (sobre Jackson 3). Sin dependencias de framework. |
 | `pragma-log-logback` | Encoder JSON para Logback, construido sobre logstash-logback-encoder. |
 | `pragma-log-bom` | Alinea las versiones de todos los módulos. |
 | `examples/plain-java` | App de ejemplo (no se publica). |

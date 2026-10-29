@@ -1,8 +1,19 @@
 package co.com.pragma.logging.logback;
 
+import ch.qos.logback.classic.spi.ILoggingEvent;
 import co.com.pragma.logging.core.PragmaLogSettings;
 import co.com.pragma.logging.core.StandardFields;
+import co.com.pragma.logging.core.masking.LogMasker;
+import co.com.pragma.logging.core.masking.MaskType;
+import co.com.pragma.logging.core.masking.MaskingSettings;
+import co.com.pragma.logging.core.masking.MaskingStrategy;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import net.logstash.logback.encoder.LogstashEncoder;
 import net.logstash.logback.fieldnames.LogstashFieldNames;
 import tools.jackson.databind.json.JsonMapper;
@@ -11,11 +22,16 @@ import tools.jackson.databind.json.JsonMapper;
  * Logback encoder that writes one JSON object per event following the Pragma log schema.
  *
  * <p>Built on {@link LogstashEncoder} (ADR-01): MDC entries and SLF4J key-value pairs are
- * included as top-level fields. Usage in {@code logback.xml}:
+ * included as top-level fields. Message arguments, MDC and key-values are masked before writing
+ * (ADR-07); if masking fails the event is still written, without its arguments (ADR-15).
  *
  * <pre>{@code
  * <encoder class="co.com.pragma.logging.logback.PragmaJsonEncoder">
  *   <appName>my-service</appName>
+ *   <!-- optional masking settings -->
+ *   <maskFields>password,cardNumber,documentId</maskFields>
+ *   <maskCharacter>*</maskCharacter>
+ *   <maskStrategy>EMAIL=com.acme.EmailMaskingStrategy</maskStrategy>
  * </encoder>
  * }</pre>
  */
@@ -24,6 +40,15 @@ public class PragmaJsonEncoder extends LogstashEncoder {
     private static final String IGNORE = "[ignore]";
 
     private String appName = PragmaLogSettings.DEFAULT_APP_NAME;
+    private boolean maskingEnabled = true;
+    private char maskCharacter = MaskingSettings.DEFAULT_CHARACTER;
+    private String maskDefaultType = MaskType.FULL.name();
+    private int maskDefaultLength = MaskingSettings.DEFAULT_LENGTH;
+    private Set<String> maskFields = MaskingSettings.DEFAULT_FIELDS;
+    private int maskMaxDepth = MaskingSettings.DEFAULT_MAX_DEPTH;
+    private final Map<String, String> maskStrategies = new LinkedHashMap<>();
+
+    private EventMasker eventMasker;
 
     public void setAppName(String appName) {
         this.appName = appName;
@@ -33,12 +58,102 @@ public class PragmaJsonEncoder extends LogstashEncoder {
         return appName;
     }
 
+    public void setMaskingEnabled(boolean maskingEnabled) {
+        this.maskingEnabled = maskingEnabled;
+    }
+
+    public void setMaskCharacter(String maskCharacter) {
+        if (maskCharacter == null || maskCharacter.length() != 1) {
+            addError("pragma-log: maskCharacter must be exactly one character, got '" + maskCharacter + "'");
+            return;
+        }
+        this.maskCharacter = maskCharacter.charAt(0);
+    }
+
+    public void setMaskDefaultType(String maskDefaultType) {
+        this.maskDefaultType = maskDefaultType;
+    }
+
+    public void setMaskDefaultLength(int maskDefaultLength) {
+        this.maskDefaultLength = maskDefaultLength;
+    }
+
+    /** Comma-separated field names masked by name; replaces the default list. */
+    public void setMaskFields(String maskFields) {
+        this.maskFields = Arrays.stream(maskFields.split(","))
+                .map(String::trim)
+                .filter(name -> !name.isEmpty())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    public void setMaskMaxDepth(int maskMaxDepth) {
+        this.maskMaxDepth = maskMaxDepth;
+    }
+
+    /** Registers a custom strategy as {@code NAME=fully.qualified.ClassName}; may be repeated. */
+    public void addMaskStrategy(String definition) {
+        int separator = definition == null ? -1 : definition.indexOf('=');
+        if (separator <= 0 || separator == definition.length() - 1) {
+            addError("pragma-log: maskStrategy must look like NAME=fully.qualified.ClassName, got '"
+                    + definition + "'");
+            return;
+        }
+        maskStrategies.put(definition.substring(0, separator).trim(), definition.substring(separator + 1).trim());
+    }
+
     @Override
     public void start() {
-        PragmaLogSettings settings = new PragmaLogSettings(appName);
+        PragmaLogSettings settings = new PragmaLogSettings(appName, buildMaskingSettings());
+        eventMasker = new EventMasker(new LogMasker(settings.masking()));
         applySchemaFieldNames(getFieldNames());
         setCustomFields(JsonMapper.shared().writeValueAsString(Map.of(StandardFields.APP, settings.appName())));
         super.start();
+    }
+
+    @Override
+    public byte[] encode(ILoggingEvent event) {
+        ILoggingEvent masked;
+        try {
+            masked = eventMasker.mask(event);
+        } catch (RuntimeException | StackOverflowError e) {
+            addError("pragma-log: could not mask event, writing it without arguments", e);
+            return super.encode(eventMasker.fallback(event, e));
+        }
+        try {
+            return super.encode(masked);
+        } catch (RuntimeException e) {
+            addError("pragma-log: could not encode event, writing it without arguments", e);
+            return super.encode(eventMasker.fallback(event, e));
+        }
+    }
+
+    /**
+     * Invalid masking configuration is reported loudly through Logback's status and replaced by the
+     * secure defaults: masking stays on (CFG-05).
+     */
+    private MaskingSettings buildMaskingSettings() {
+        try {
+            return new MaskingSettings(maskingEnabled, maskCharacter,
+                    MaskType.valueOf(maskDefaultType.trim().toUpperCase(Locale.ROOT)), maskDefaultLength,
+                    maskFields, maskMaxDepth, loadStrategies());
+        } catch (RuntimeException e) {
+            addError("pragma-log: invalid masking configuration, using secure defaults: " + e.getMessage(), e);
+            return MaskingSettings.defaults();
+        }
+    }
+
+    private Map<String, MaskingStrategy> loadStrategies() {
+        Map<String, MaskingStrategy> strategies = new LinkedHashMap<>();
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        maskStrategies.forEach((name, className) -> {
+            try {
+                Class<?> type = Class.forName(className, true, classLoader);
+                strategies.put(name, (MaskingStrategy) type.getDeclaredConstructor().newInstance());
+            } catch (ReflectiveOperationException | ClassCastException e) {
+                throw new IllegalArgumentException("cannot load mask strategy " + name + "=" + className, e);
+            }
+        });
+        return strategies;
     }
 
     private static void applySchemaFieldNames(LogstashFieldNames names) {
