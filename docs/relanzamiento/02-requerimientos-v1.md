@@ -103,6 +103,8 @@ Ver [03-decisiones-arquitectura.md](03-decisiones-arquitectura.md). Aceptadas: l
    - *Hecho (2026-10-29):* ocultar/renombrar cualquier campo (FLD-02/03), campos fijos (FLD-05), stacktrace configurable y acotado (ERR-01/03), resumen `error` con causa raíz (ERR-02/04), JMH inicial ([04-rendimiento.md](04-rendimiento.md)).
    - *Funcionalmente completa.* Para publicar `0.1.0` faltan el groupId (ADR-05), la licencia y el flujo de release a Central.
 4. **E3 — Spring MVC → `0.2.0`:** starter, `@ConfigurationProperties`, filtro HTTP, trazas (CTX-01).
+   - *Hecho (2026-10-29):* starter sin XML, activado como formato de *structured logging* de Spring Boot; `pragma.log.*` con metadata para el IDE; `app` desde `spring.application.name`; filtro HTTP con `requestId` (seguro contra inyección), método, path y headers en lista permitida, restaurando el MDC previo; `format: plain` para local; config inválida detiene el arranque; compatibilidad Boot 3.5 y 4.x probada en cada build (spike ADR-12); app de ejemplo.
+   - *Pendiente / no verificado:* `traceId`/`spanId` con Micrometer Tracing no tiene test propio (se apoya en el MDC que escribe Micrometer); status y duración del request (ENR-01) no se agregan todavía.
 5. **E4 — WebFlux → `0.3.0`:** propagación de contexto reactivo (spike ADR-12 al inicio).
 6. **E5 — Quarkus → `0.4.0`:** spike ADR-11 + extensión.
 7. **E6 — SHOULDs + JMH + docs → `1.0.0`** en Maven Central.

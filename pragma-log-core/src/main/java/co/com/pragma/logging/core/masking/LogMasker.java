@@ -53,9 +53,22 @@ public final class LogMasker {
     public JsonNode toTree(Object value) {
         try {
             return mapper.valueToTree(value);
-        } catch (RuntimeException | StackOverflowError e) {
+        } catch (RuntimeException | LinkageError | StackOverflowError e) {
             return JsonNodeFactory.instance.stringNode(placeholder(value));
         }
+    }
+
+    /**
+     * Serializes a sample annotated object without catching errors, to detect at startup a classpath where
+     * object masking cannot work (e.g. an incompatible {@code jackson-annotations} version).
+     *
+     * @throws RuntimeException or {@link LinkageError} describing the problem
+     */
+    public void verify() {
+        mapper.valueToTree(new SelfCheck("value"));
+    }
+
+    private record SelfCheck(@MaskedLogField String secret) {
     }
 
     /** Masked text of {@code value}, used to substitute {@code {}} placeholders in log messages (MSK-07). */

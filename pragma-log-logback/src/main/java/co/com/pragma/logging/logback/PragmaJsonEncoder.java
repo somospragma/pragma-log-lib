@@ -7,9 +7,11 @@ import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskingSettings;
 import co.com.pragma.logging.core.masking.MaskingStrategy;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -60,7 +62,10 @@ public class PragmaJsonEncoder extends LogstashEncoder {
     private int stacktraceMaxDepth = DEFAULT_STACKTRACE_MAX_DEPTH;
     private int stacktraceMaxLength = DEFAULT_STACKTRACE_MAX_LENGTH;
     private boolean stacktraceRootCauseFirst;
+    private boolean includeContext;
+    private boolean includeTags;
 
+    private final List<String> configurationErrors = new ArrayList<>();
     private EventMasker eventMasker;
     private ErrorJsonProvider errorProvider;
 
@@ -78,7 +83,7 @@ public class PragmaJsonEncoder extends LogstashEncoder {
 
     public void setMaskCharacter(String maskCharacter) {
         if (maskCharacter == null || maskCharacter.length() != 1) {
-            addError("pragma-log: maskCharacter must be exactly one character, got '" + maskCharacter + "'");
+            configurationError("pragma-log: maskCharacter must be exactly one character, got '" + maskCharacter + "'");
             return;
         }
         this.maskCharacter = maskCharacter.charAt(0);
@@ -155,10 +160,26 @@ public class PragmaJsonEncoder extends LogstashEncoder {
         this.stacktraceRootCauseFirst = stacktraceRootCauseFirst;
     }
 
+    /** Logback context properties (e.g. Spring Boot's PID and log patterns) are off by default: framework noise. */
+    @Override
+    public void setIncludeContext(boolean includeContext) {
+        this.includeContext = includeContext;
+    }
+
+    /** Marker tags are off by default: frameworks add their own (e.g. Spring's COMMONS-LOGGING). */
+    @Override
+    public void setIncludeTags(boolean includeTags) {
+        this.includeTags = includeTags;
+    }
+
     @Override
     public void start() {
+        super.setIncludeContext(includeContext);
+        super.setIncludeTags(includeTags);
         PragmaLogSettings settings = new PragmaLogSettings(appName, buildMaskingSettings());
-        eventMasker = new EventMasker(new LogMasker(settings.masking()));
+        LogMasker masker = new LogMasker(settings.masking());
+        verifyMasking(masker);
+        eventMasker = new EventMasker(masker);
         if (!includeStacktrace) {
             layout.hide(StandardFields.STACKTRACE);
         }
@@ -175,18 +196,56 @@ public class PragmaJsonEncoder extends LogstashEncoder {
 
     @Override
     public byte[] encode(ILoggingEvent event) {
+        // LinkageError covers incompatible dependency versions on the application classpath:
+        // a logging call must never break the application (ADR-15).
         ILoggingEvent masked;
         try {
             masked = eventMasker.mask(event);
-        } catch (RuntimeException | StackOverflowError e) {
+        } catch (RuntimeException | LinkageError | StackOverflowError e) {
             addError("pragma-log: could not mask event, writing it without arguments", e);
-            return super.encode(eventMasker.fallback(event, e));
+            return encodeFallback(event, e);
         }
         try {
             return super.encode(masked);
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | LinkageError | StackOverflowError e) {
             addError("pragma-log: could not encode event, writing it without arguments", e);
-            return super.encode(eventMasker.fallback(event, e));
+            return encodeFallback(event, e);
+        }
+    }
+
+    /** Configuration problems found so far; each was also reported through Logback's status. */
+    public List<String> getConfigurationErrors() {
+        return List.copyOf(configurationErrors);
+    }
+
+    private void configurationError(String message) {
+        configurationErrors.add(message);
+        addError(message);
+    }
+
+    private void configurationError(String message, Throwable cause) {
+        configurationErrors.add(message);
+        addError(message, cause);
+    }
+
+    /** A warning, not an error: frameworks such as Spring Boot abort startup on logging errors. */
+    private void verifyMasking(LogMasker masker) {
+        try {
+            masker.verify();
+        } catch (RuntimeException | LinkageError e) {
+            addWarn("pragma-log: object masking does not work on this classpath, objects will be logged as"
+                    + " <ClassName>. Check that com.fasterxml.jackson.core:jackson-annotations matches the version"
+                    + " required by Jackson 3 (with Spring Boot 3.x set jackson-bom.version to 2.22.x or newer). Cause: "
+                    + e, e);
+        }
+    }
+
+    private byte[] encodeFallback(ILoggingEvent event, Throwable error) {
+        try {
+            return super.encode(eventMasker.fallback(event, error));
+        } catch (RuntimeException | LinkageError | StackOverflowError e) {
+            addError("pragma-log: could not encode fallback event, dropping it", e);
+            return new byte[0];
         }
     }
 
@@ -200,7 +259,7 @@ public class PragmaJsonEncoder extends LogstashEncoder {
                     MaskType.valueOf(maskDefaultType.trim().toUpperCase(Locale.ROOT)), maskDefaultLength,
                     maskFields, maskMaxDepth, loadStrategies());
         } catch (RuntimeException e) {
-            addError("pragma-log: invalid masking configuration, using secure defaults: " + e.getMessage(), e);
+            configurationError("pragma-log: invalid masking configuration, using secure defaults: " + e.getMessage(), e);
             return MaskingSettings.defaults();
         }
     }
@@ -245,7 +304,7 @@ public class PragmaJsonEncoder extends LogstashEncoder {
     private String[] splitPair(String property, String definition) {
         int separator = definition == null ? -1 : definition.indexOf('=');
         if (separator <= 0 || separator == definition.length() - 1) {
-            addError("pragma-log: " + property + " must look like name=value, got '" + definition + "'");
+            configurationError("pragma-log: " + property + " must look like name=value, got '" + definition + "'");
             return null;
         }
         return new String[] {definition.substring(0, separator).trim(), definition.substring(separator + 1).trim()};

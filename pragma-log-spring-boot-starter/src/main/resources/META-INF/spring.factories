@@ -1,0 +1,7 @@
+# Spring Boot 4+
+org.springframework.boot.EnvironmentPostProcessor=\
+co.com.pragma.logging.spring.PragmaLogEnvironmentPostProcessor
+
+# Spring Boot 3.x
+org.springframework.boot.env.EnvironmentPostProcessor=\
+co.com.pragma.logging.spring.LegacyPragmaLogEnvironmentPostProcessor

@@ -183,6 +183,16 @@ No se exige `StructuredArguments.kv(...)` de logstash, para que el código del s
 - ➖ En Spring Boot 3.x y Quarkus (Jackson 2) conviven ambas versiones en el classpath. Son paquetes distintos (`com.fasterxml.jackson` vs `tools.jackson`), así que no chocan, pero suman ~2 MB. Solo `jackson-annotations` se comparte.
 - **Spike al iniciar E3:** app Spring Boot 3.x + starter, verificar convivencia y auto-config. Si hay conflictos, se evalúa soportar solo Boot 4 en `1.0`.
 
+**Resultado del spike (2026-10-29).** Se soportan **Spring Boot 3.5 y 4.x**; el build corre todos los tests del starter contra ambas versiones (`test` y `boot3Test`).
+- Con Gradle, Jackson 2.21 (Boot 3.5) y Jackson 3.2 conviven sin problemas.
+- **Riesgo encontrado:** Jackson 3.2 necesita `jackson-annotations` ≥ 2.22. Con Maven, el BOM de Boot 3.5 la baja a 2.21 y la serialización lanza `NoClassDefFoundError`. Antes del arreglo, **ese error rompía el request de la aplicación**.
+- Mitigaciones aplicadas:
+  1. Masking y encoder capturan también `LinkageError`: el log sale con `<ClassName>` y la app sigue (ADR-15).
+  2. Verificación al arranque que emite una advertencia con la solución.
+  3. `pragma-log-bom` importa el BOM de Jackson 3, que fija `jackson-annotations` 2.22.
+  4. README: con Maven y Boot 3.x, `jackson-bom.version=2.22.x` o importar `pragma-log-bom` antes.
+- Boot 4 movió `EnvironmentPostProcessor` de paquete (la clave vieja queda deprecada para eliminación); el starter registra una implementación por cada clave.
+
 ## ADR-13 — Build · Propuesta
 
 **Decisión.**

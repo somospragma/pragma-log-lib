@@ -6,6 +6,40 @@ Librería de logging estructurado para servicios Java de Pragma. Sigues usando S
 > Requerimientos y decisiones: [docs/relanzamiento](docs/relanzamiento/).
 > La implementación anterior está en las ramas `legacy/libs` y `legacy/nexus`.
 
+## Uso rápido (Spring Boot 3.5+ / 4.x)
+
+Solo la dependencia. No hace falta `logback-spring.xml`:
+
+```kotlin
+dependencies {
+    implementation("co.com.pragma.logging:pragma-log-spring-boot-starter:0.1.0-SNAPSHOT")
+}
+```
+
+Cada log sale en JSON con masking, `app` = `spring.application.name` y el contexto HTTP del request (`requestId`, `http.method`, `http.path`). El `requestId` se toma del header `X-Request-Id`; si no viene o no es seguro se genera uno, y se devuelve en la respuesta. Si la app usa Micrometer Tracing, `traceId` y `spanId` aparecen solos.
+
+```yaml
+pragma:
+  log:
+    fields:                 # campos fijos
+      env: prod
+    hide-fields: [thread]
+    rename-fields:
+      level: severity
+    masking:
+      fields: [password, documentId]   # reemplaza la lista por defecto
+    stacktrace:
+      max-depth: 30
+    http:
+      headers: [X-Client-Id]           # headers a incluir (lista permitida)
+    # format: plain   # salida de consola normal de Spring (sin masking), útil en local
+    # enabled: false  # apaga la librería
+```
+
+El IDE autocompleta todas las propiedades `pragma.log.*`. Una configuración inválida detiene el arranque con un mensaje claro.
+
+> **Spring Boot 3.x con Maven:** Jackson 3 (que usa pragma-log) necesita `jackson-annotations` 2.22 o superior, y el BOM de Boot 3.x la fija en una versión anterior. Define `<jackson-bom.version>2.22.4</jackson-bom.version>` o importa `pragma-log-bom` antes que el de Spring Boot. Si no, la app funciona igual, pero los objetos salen como `<ClassName>` y al arrancar aparece una advertencia de pragma-log. Con Gradle no hace falta nada.
+
 ## Uso rápido (Java puro + Logback)
 
 ```kotlin
@@ -106,11 +140,13 @@ Cuando se loguea una excepción, además del `stacktrace` sale un resumen fácil
 |---|---|
 | `pragma-log-core` | Esquema de campos, configuración y masking (sobre Jackson 3). Sin dependencias de framework. |
 | `pragma-log-logback` | Encoder JSON para Logback, construido sobre logstash-logback-encoder. |
-| `pragma-log-bom` | Alinea las versiones de todos los módulos. |
-| `examples/plain-java` | App de ejemplo (no se publica). |
+| `pragma-log-spring-boot-starter` | Auto-configuración para Spring Boot 3.5+ y 4.x (MVC). Probado contra ambas versiones en cada build. |
+| `pragma-log-bom` | Alinea las versiones de todos los módulos (y `jackson-annotations`). |
+| `examples/plain-java` | App de ejemplo Java puro (no se publica). |
+| `examples/spring-mvc` | App de ejemplo Spring Boot MVC (no se publica). |
 | `benchmarks` | Benchmarks JMH (no se publica). Ver [rendimiento](docs/relanzamiento/04-rendimiento.md). |
 
-Próximos: `pragma-log-spring-boot-starter` (MVC y WebFlux) y `pragma-log-quarkus`.
+Próximos: soporte WebFlux en el starter y `pragma-log-quarkus`.
 
 ## Desarrollo
 

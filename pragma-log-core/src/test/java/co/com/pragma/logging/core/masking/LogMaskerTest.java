@@ -89,6 +89,19 @@ class LogMaskerTest {
         }
     }
 
+    static class Incompatible {
+        @JsonSerialize(using = LinkageFailingSerializer.class)
+        String data = "SECRET";
+    }
+
+    /** Simulates an incompatible dependency version on the application classpath. */
+    static class LinkageFailingSerializer extends ValueSerializer<String> {
+        @Override
+        public void serialize(String value, JsonGenerator gen, SerializationContext ctxt) {
+            throw new NoClassDefFoundError("com/fasterxml/jackson/annotation/JsonApplyView");
+        }
+    }
+
     static class Custom {
         @MaskedLogField(type = MaskType.CUSTOM, strategy = "EMAIL")
         String email = "ana.perez@pragma.com.co";
@@ -145,6 +158,12 @@ class LogMaskerTest {
         @DisplayName("a serialization failure yields a placeholder, never toString() (ALR-05)")
         void failureFallsBackToPlaceholder() {
             assertThat(masker.toText(new Exploding())).isEqualTo("<Exploding>");
+        }
+
+        @Test
+        @DisplayName("incompatible dependency versions yield a placeholder instead of breaking the app (ADR-15)")
+        void linkageErrorFallsBackToPlaceholder() {
+            assertThat(masker.toText(new Incompatible())).isEqualTo("<Incompatible>");
         }
     }
 

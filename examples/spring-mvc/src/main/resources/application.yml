@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: customers-service
+
+pragma:
+  log:
+    fields:
+      env: local
+    http:
+      headers: [X-Client-Id]
+    # format: plain   # uncomment for the regular Spring Boot console output

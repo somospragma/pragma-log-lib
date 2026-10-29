@@ -359,6 +359,32 @@ class PragmaJsonEncoderTest {
         }
     }
 
+    @Test
+    @DisplayName("linkage errors from incompatible dependencies never reach the application (ADR-15)")
+    void linkageErrorDoesNotEscape() {
+        startEncoder();
+        LoggingEvent event = eventWithMdc(new LinkageFailingMap(), "Payment for {} failed", new User());
+
+        JsonNode json = encode(event);
+
+        assertThat(json.get("message").asString()).isEqualTo("Payment for {} failed");
+        assertThat(json.get(EventMasker.ERROR_FIELD).asString()).isEqualTo(NoClassDefFoundError.class.getName());
+    }
+
+    static class LinkageFailingMap extends HashMap<String, String> {
+        private static final long serialVersionUID = 1L;
+
+        @Override
+        public Set<String> keySet() {
+            throw new NoClassDefFoundError("some/Missing");
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return false;
+        }
+    }
+
     /** MDC map that fails when inspected, to force the masking fallback. */
     static class ExplodingMap extends HashMap<String, String> {
         private static final long serialVersionUID = 1L;
