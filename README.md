@@ -63,7 +63,31 @@ Funciona en cualquier flujo reactivo (también fuera de un request HTTP, p. ej. 
 
 El IDE autocompleta todas las propiedades `pragma.log.*`. Una configuración inválida detiene el arranque con un mensaje claro.
 
-> **Spring Boot 3.x con Maven:** Jackson 3 (que usa pragma-log) necesita `jackson-annotations` 2.22 o superior, y el BOM de Boot 3.x la fija en una versión anterior. Define `<jackson-bom.version>2.22.4</jackson-bom.version>` o importa `pragma-log-bom` antes que el de Spring Boot. Si no, la app funciona igual, pero los objetos salen como `<ClassName>` y al arrancar aparece una advertencia de pragma-log. Con Gradle no hace falta nada.
+## Uso rápido (Quarkus 3.33+)
+
+Solo la dependencia:
+
+```kotlin
+dependencies {
+    implementation("co.com.pragma.logging:pragma-log-quarkus:0.1.0-SNAPSHOT")
+}
+```
+
+Los logs de consola y archivo salen en JSON con el mismo esquema, el mismo masking y las mismas propiedades que en Spring, ahora en `application.properties`:
+
+```properties
+pragma.log.fields.env=prod
+pragma.log.rename-fields.level=severity
+pragma.log.masking.fields=password,documentId
+pragma.log.http.headers=X-Client-Id
+pragma.log.http.request-log.exclude-paths=/q/**,/health
+# pragma.log.format=plain   # salida normal de Quarkus (sin masking), útil en local
+```
+
+- Funciona con SLF4J (`log.info("{}", obj)`, `log.atInfo().addKeyValue(...)`) y con JBoss Logging (`Log.infof("%s", obj)`). La extensión reemplaza el binding SLF4J de Quarkus, que convertía los objetos a texto antes de poder enmascararlos.
+- Cada request agrega `requestId`, `http.method` y `http.path`, también en los hilos worker y en código reactivo con Mutiny. Al terminar sale el log con `http.status` y `http.durationMs`; las rutas `/q/**` no lo generan.
+- `app` y `version` salen de `quarkus.application.name` y `quarkus.application.version`.
+- Probado en JVM, jar de producción y dev mode. **Modo nativo:** las clases con `@MaskedLogField` se registran solas para reflexión; otras clases que se logueen como objeto necesitan `@RegisterForReflection` o salen como `<ClassName>`. Todavía no está verificado con una compilación nativa.
 
 ## Uso rápido (Java puro + Logback)
 
@@ -169,13 +193,15 @@ Cuando se loguea una excepción, además del `stacktrace` sale un resumen fácil
 | `pragma-log-core` | Esquema de campos, configuración y masking (sobre Jackson 3). Sin dependencias de framework. |
 | `pragma-log-logback` | Encoder JSON para Logback, construido sobre logstash-logback-encoder. |
 | `pragma-log-spring-boot-starter` | Auto-configuración para Spring Boot 3.5+ y 4.x, MVC y WebFlux. Probado contra ambas versiones en cada build. |
+| `pragma-log-quarkus` | Extensión de Quarkus 3.33+ (JBoss LogManager): JSON, masking y contexto HTTP. |
+| `pragma-log-quarkus-deployment` | Parte de build de la extensión; Quarkus la usa sola. |
+| `pragma-log-quarkus-slf4j` | Binding SLF4J de la extensión; conserva los argumentos para enmascararlos. |
 | `pragma-log-bom` | Alinea las versiones de todos los módulos (y `jackson-annotations`). |
 | `examples/plain-java` | App de ejemplo Java puro (no se publica). |
 | `examples/spring-mvc` | App de ejemplo Spring Boot MVC (no se publica). |
 | `examples/spring-webflux` | App de ejemplo Spring Boot WebFlux (no se publica). |
+| `examples/quarkus` | App de ejemplo Quarkus con tests `@QuarkusTest` (no se publica). |
 | `benchmarks` | Benchmarks JMH (no se publica). Ver [rendimiento](docs/relanzamiento/04-rendimiento.md). |
-
-Próximo: `pragma-log-quarkus`.
 
 ## Desarrollo
 
@@ -184,5 +210,6 @@ Requiere JDK 17 o superior.
 ```bash
 ./gradlew build                        # compila y corre los tests
 ./gradlew :examples:plain-java:run     # ejecuta el ejemplo
+./gradlew :examples:quarkus:quarkusDev # ejemplo Quarkus en dev mode
 ./gradlew publishToMavenLocal          # publica en ~/.m2 para probar en otro proyecto
 ```

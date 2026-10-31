@@ -1,5 +1,6 @@
 package co.com.pragma.logging.spring;
 
+import co.com.pragma.logging.core.http.HttpLogContext;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -13,10 +14,7 @@ import org.springframework.util.AntPathMatcher;
  */
 final class RequestCompletionLog {
 
-    /** Logger of the request log, so it can be tuned with logging.level like any other. */
-    static final String LOGGER_NAME = "co.com.pragma.logging.http";
-    static final String HTTP_STATUS = "http.status";
-    static final String HTTP_DURATION_MS = "http.durationMs";
+    static final String LOGGER_NAME = HttpLogContext.COMPLETION_LOGGER;
 
     private static final Logger log = LoggerFactory.getLogger(LOGGER_NAME);
     private static final AntPathMatcher PATHS = new AntPathMatcher();
@@ -42,16 +40,14 @@ final class RequestCompletionLog {
      */
     void write(Map<String, String> context, Integer status, long startNanos) {
         long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
-        String request = context.get(RequestLogContext.HTTP_METHOD) + " " + context.get(RequestLogContext.HTTP_PATH);
         Map<String, String> previous = RequestLogContext.putInMdc(context);
         try {
-            if (status == null) {
-                log.atInfo().addKeyValue(HTTP_DURATION_MS, durationMs)
-                        .log("HTTP {} cancelled after {} ms", request, durationMs);
-            } else {
-                log.atInfo().addKeyValue(HTTP_STATUS, status).addKeyValue(HTTP_DURATION_MS, durationMs)
-                        .log("HTTP {} {} in {} ms", request, status, durationMs);
+            var event = log.atInfo();
+            if (status != null) {
+                event = event.addKeyValue(HttpLogContext.HTTP_STATUS, status);
             }
+            event.addKeyValue(HttpLogContext.HTTP_DURATION_MS, durationMs)
+                    .log(HttpLogContext.completionMessage(context, status, durationMs));
         } finally {
             RequestLogContext.restoreMdc(previous);
         }

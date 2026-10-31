@@ -1,5 +1,5 @@
 [versions]
-jackson = "3.2.4"
+jackson = "3.1.8"
 logback = "1.5.38"
 logstash-encoder = "9.0"
 slf4j = "2.0.20"
@@ -10,8 +10,21 @@ jmh = "1.37"
 spring-boot = "4.1.2"
 spring-boot3 = "3.5.16"
 context-propagation = "1.2.1"
+# Minimum supported: 3.33 LTS, the first one that ships jackson-annotations 2.21 (required by Jackson 3.1).
+quarkus = "3.33.4"
 
 [libraries]
+quarkus-bom = { module = "io.quarkus:quarkus-bom", version.ref = "quarkus" }
+quarkus-core = { module = "io.quarkus:quarkus-core" }
+quarkus-core-deployment = { module = "io.quarkus:quarkus-core-deployment" }
+quarkus-arc = { module = "io.quarkus:quarkus-arc" }
+quarkus-arc-deployment = { module = "io.quarkus:quarkus-arc-deployment" }
+quarkus-vertx-http = { module = "io.quarkus:quarkus-vertx-http" }
+quarkus-vertx-http-deployment = { module = "io.quarkus:quarkus-vertx-http-deployment" }
+quarkus-extension-processor = { module = "io.quarkus:quarkus-extension-processor" }
+quarkus-rest = { module = "io.quarkus:quarkus-rest" }
+quarkus-junit5 = { module = "io.quarkus:quarkus-junit5" }
+rest-assured = { module = "io.rest-assured:rest-assured" }
 jackson-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson" }
 jackson-databind = { module = "tools.jackson.core:jackson-databind" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
@@ -40,3 +53,7 @@ jmh-generator = { module = "org.openjdk.jmh:jmh-generator-annprocess", version.r
 
 # Used by build-logic convention plugins
 maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish" }
+
+[plugins]
+quarkus = { id = "io.quarkus", version.ref = "quarkus" }
+quarkus-extension = { id = "io.quarkus.extension", version.ref = "quarkus" }

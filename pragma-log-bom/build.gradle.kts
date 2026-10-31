@@ -16,5 +16,8 @@ dependencies {
         api(project(":pragma-log-core"))
         api(project(":pragma-log-logback"))
         api(project(":pragma-log-spring-boot-starter"))
+        api(project(":pragma-log-quarkus"))
+        api(project(":pragma-log-quarkus-deployment"))
+        api(project(":pragma-log-quarkus-slf4j"))
     }
 }

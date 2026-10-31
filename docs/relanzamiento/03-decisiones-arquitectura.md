@@ -17,8 +17,8 @@
 | ADR-08 | API del desarrollador = **SLF4J 2 estándar**, sin API propia | Propuesta |
 | ADR-09 | Configuración nativa de cada framework (sin YAML propio) | Propuesta |
 | ADR-10 | Contexto y trazas: **MDC** como único canal | Propuesta |
-| ADR-11 | Quarkus como **extensión** sobre JBoss LogManager | Requiere spike |
-| ADR-12 | **Jackson 3** en todo el proyecto; starter para Boot 3.x y 4.x | Aceptada (Jackson) · spike pendiente (Boot 3) |
+| ADR-11 | Quarkus como **extensión** sobre JBoss LogManager, con binding SLF4J propio | Aceptada (spike hecho) |
+| ADR-12 | **Jackson 3.1** en todo el proyecto; starter para Boot 3.5 y 4.x, extensión para Quarkus ≥ 3.33 | Aceptada |
 | ADR-13 | Build: Gradle + version catalog + BOM | Propuesta |
 | ADR-14 | Nueva rama `v2` desde cero; código viejo en ramas `legacy/*` | Propuesta |
 | ADR-15 | La librería nunca rompe la app ni pierde un log | Propuesta |
@@ -162,17 +162,29 @@ No se exige `StructuredArguments.kv(...)` de logstash, para que el código del s
 
 **Consecuencias.** Se descartan `LogContextHolder`, los holders reactivos con `block()` y los aspectos AOP `@LogEnrichment` (ENR-05 → DROP). Las opciones de captura pasan a la config (`pragma.log.http.*`).
 
-## ADR-11 — Quarkus como extensión · Requiere spike
+## ADR-11 — Quarkus como extensión · Aceptada
 
 **Contexto.** Quarkus usa JBoss LogManager, no Logback; ni el encoder ni logstash aplican.
 
-**Propuesta.** Extensión Quarkus (módulos `runtime` + `deployment`) que registra un formatter JSON propio (o se integra con `quarkus-logging-json` mediante sus providers), reutilizando el masking y el esquema del core.
+**Propuesta original.** Extensión Quarkus (módulos `runtime` + `deployment`) con un formatter JSON propio, o providers sobre `quarkus-logging-json`.
 
-**Spike (1–2 días).** App Quarkus mínima que verifique: (1) masking de argumentos en el mensaje, (2) MDC con traceId de OTel, (3) funcionamiento en modo nativo (GraalVM): el masking basado en Jackson necesita registrar reflexión.
+**Resultado del spike (2026-10-31).**
+- `quarkus-logging-json` queda descartado: sus providers agregan campos, pero no controlan cómo se arma el mensaje, y el masking lo necesita.
+- **Hallazgo clave:** `slf4j-jboss-logmanager`, el binding SLF4J de Quarkus, formatea `{}` con `toString()` y pega los key-values al mensaje **antes** de que cualquier formatter los vea. Con él, el masking de SLF4J es imposible.
+- **Decisión:**
+  - **`pragma-log-quarkus` (runtime):** formatter JSON (`LogConsoleFormatBuildItem` / `LogFileFormatBuildItem`), configuración `pragma.log.*`, filtro HTTP de Vert.x y log de fin de request.
+  - **`pragma-log-quarkus-deployment`:** build steps; registra para reflexión, en nativo, las clases con `@MaskedLogField`.
+  - **`pragma-log-quarkus-slf4j`:** binding SLF4J propio que conserva plantilla, argumentos y key-values. La extensión excluye `slf4j-jboss-logmanager` (`excluded-artifacts`). El binding es *parent-first*, como JBoss LogManager, para que el formatter vea la misma clase de record en tests y en dev mode.
+- **Dev mode y tests:** Quarkus no aplica la exclusión al classpath del JVM, así que `slf4j-jboss-logmanager` sigue visible. La extensión lo resuelve en tres capas:
+  1. Fija `slf4j.provider`.
+  2. Si SLF4J ya se había inicializado (dev mode lo hace durante el build), reemplaza el provider. Los loggers de la aplicación se crean después.
+  3. Como red de seguridad, el formatter re-enmascara los objetos del mensaje que llegan ya formateados, y al arrancar avisa si el binding no es el de pragma-log.
+- **Contexto HTTP:** MDC de JBoss, que Quarkus guarda en el contexto duplicado de Vert.x. Viaja entre event loop y workers del mismo request y desaparece al terminar.
+- **Verificado:** JVM (tests `@QuarkusTest`), jar de producción y dev mode, con Quarkus 3.33 LTS y 3.40.
+- **Pendiente:** compilación nativa (GraalVM/Mandrel), no verificada todavía.
+- **Gradle 9:** el plugin `io.quarkus.extension` 3.33 todavía no es compatible. Su validación resuelve dependencias de otro proyecto de forma insegura (se desactiva) y sus tareas no soportan configuration cache (se marcan).
 
-**Resultado esperado.** Elegir entre "extensión propia" o "providers sobre `quarkus-logging-json`".
-
-## ADR-12 — Jackson 3 · Aceptada (spike pendiente para Boot 3)
+## ADR-12 — Jackson 3 · Aceptada
 
 **Contexto.** Al armar el esqueleto (2026-10-29) se verificó que **logstash-logback-encoder 9.0 ya usa Jackson 3** (`tools.jackson`, requiere Java 17). La línea 8.x sigue en Jackson 2. Spring Boot 4 también usa Jackson 3 por defecto.
 
@@ -190,7 +202,8 @@ No se exige `StructuredArguments.kv(...)` de logstash, para que el código del s
   1. Masking y encoder capturan también `LinkageError`: el log sale con `<ClassName>` y la app sigue (ADR-15).
   2. Verificación al arranque que emite una advertencia con la solución.
   3. `pragma-log-bom` importa el BOM de Jackson 3, que fija `jackson-annotations` 2.22.
-  4. README: con Maven y Boot 3.x, `jackson-bom.version=2.22.x` o importar `pragma-log-bom` antes.
+  4. ~~README: con Maven y Boot 3.x, `jackson-bom.version=2.22.x`~~ ya no hace falta con Jackson 3.1 (ver abajo).
+- **Actualización (2026-10-31): se baja a Jackson 3.1.x**, que necesita `jackson-annotations` 2.21 en vez de 2.22. Es la versión que ya traen Spring Boot 3.5 y Quarkus 3.33 LTS (y posteriores), así que **funciona sin tocar nada en Maven ni en Gradle**. logstash-logback-encoder 9.0 solo pide Jackson ≥ 3.0.1. Las mitigaciones 1–3 se mantienen para classpaths más viejos (Quarkus < 3.33 trae 2.19).
 - Boot 4 movió `EnvironmentPostProcessor` de paquete (la clave vieja queda deprecada para eliminación); el starter registra una implementación por cada clave.
 
 ## ADR-13 — Build · Propuesta

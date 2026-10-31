@@ -16,8 +16,12 @@ include(
     "pragma-log-core",
     "pragma-log-logback",
     "pragma-log-spring-boot-starter",
+    "pragma-log-quarkus",
+    "pragma-log-quarkus-slf4j",
+    "pragma-log-quarkus-deployment",
     "examples:plain-java",
     "examples:spring-mvc",
     "examples:spring-webflux",
+    "examples:quarkus",
     "benchmarks",
 )

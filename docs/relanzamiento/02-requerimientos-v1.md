@@ -111,6 +111,13 @@ Ver [03-decisiones-arquitectura.md](03-decisiones-arquitectura.md). Aceptadas: l
    - *Hecho (2026-10-31):* CTX-08, variables propias del Reactor Context declaradas en `pragma.log.context-keys` salen como campos en cualquier hilo, también fuera de requests HTTP; claves reservadas detienen el arranque. Tests en Boot 4.1 y 3.5 (20 requests concurrentes, sin fugas); fallan sin el registro de los accessors.
    - *Nota:* la propagación automática tiene un costo por operador; no está medido todavía con JMH.
 6. **E5 — Quarkus → `0.4.0`:** spike ADR-11 + extensión.
+   - *Hecho (2026-10-31):*
+     - Extensión `pragma-log-quarkus` (runtime + deployment + binding SLF4J propio): JSON con el mismo esquema y masking que Logback (`{}`, key-values, MDC, JBoss Logging `%s`/`{0}`), misma configuración `pragma.log.*` en `application.properties`.
+     - Contexto HTTP con `requestId` y headers en lista permitida; sobrevive al cambio a hilos worker. Log de fin de request (200/404/500).
+     - `version`/`host`/`pid`, stacktrace acotado y resumen `error`; config inválida detiene el arranque.
+     - Probado en tests `@QuarkusTest`, jar de producción y dev mode, con Quarkus 3.33 LTS y 3.40. App de ejemplo.
+     - Jackson baja a 3.1.x para funcionar con `jackson-annotations` 2.21 (ADR-12).
+   - *Pendiente:* verificación en modo nativo (GraalVM); propagación con `context-keys` equivalente (en Quarkus basta con MDC).
 7. **E6 — SHOULDs + JMH + docs → `1.0.0`** en Maven Central.
 
 ## 7. Qué se rescata del código actual

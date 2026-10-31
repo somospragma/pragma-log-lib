@@ -1,6 +1,7 @@
 package co.com.pragma.logging.logback;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import co.com.pragma.logging.core.HostName;
 import co.com.pragma.logging.core.PragmaLogSettings;
 import co.com.pragma.logging.core.StandardFields;
 import co.com.pragma.logging.core.masking.LogMasker;

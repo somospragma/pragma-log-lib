@@ -92,7 +92,7 @@
 | CTX-03 | Datos custom de negocio en el contexto (`addCustomData`) | S | 🟡 B | SHOULD | Equivale a MDC; evaluar si basta con MDC + helper. |
 | CTX-04 | Propagación en Spring MVC (ThreadLocal / MDC) | S | ✅ A / 🟡 B | MUST* | *Con el starter. A hace `MDC.clear()` global: borra MDC ajeno. |
 | CTX-05 | Propagación en WebFlux (Reactor Context → MDC) | S | 🔴 | MUST | Sin puente Context→MDC; B hace `block()`/`subscribe()` sueltos. |
-| CTX-06 | Propagación en Quarkus (Vert.x context) | S | ⚪ | MUST | — |
+| CTX-06 | Propagación en Quarkus (Vert.x context) | S | ⚪ | MUST | — Hecho en v2 (2026-10-31): MDC en el contexto duplicado de Vert.x. |
 | CTX-07 | Limpieza obligatoria del contexto al final del request (sin memory leaks) | S | 🟡 | MUST | — |
 | CTX-08 | Variables propias del contexto en los logs: claves declaradas en config (`pragma.log.context-keys`) que viajan en el Reactor Context y salen como campos | N | — | MUST | Pedido en el relanzamiento (2026-10-31). En MVC basta con MDC. |
 | ENR-01 | Contexto HTTP: método, path, status, duración | S | 🟡 B | SHOULD | B captura antes de ejecutar el método (status inválido). Hecho en v2 (2026-10-31): log de fin de request con status y duración. |
@@ -124,7 +124,7 @@
 | CFG-04 | Config desde `application.yml` en Spring (`pragma.log.*`) | S | — | MUST | La spec lo pide; el código no lo hace. |
 | CFG-05 | Validación con errores claros | S | 🔴 | MUST | Hoy un error de YAML cae **en silencio** a la config base. |
 | CFG-06 | Hot-reload de configuración | S | — | LATER | — |
-| CFG-07 | Config en Quarkus (`application.properties`) | S | — | MUST | — |
+| CFG-07 | Config en Quarkus (`application.properties`) | S | — | MUST | — Hecho en v2 (2026-10-31): `pragma.log.*` en `application.properties`. |
 | CFG-08 | Override por variables de entorno / system properties | N | 🟡 | SHOULD | Solo existe `pragma.log.forceColors`. |
 | CFG-09 | Advertir inconsistencias (p. ej. `multiThread: true` sin AsyncAppender) | S | — | LATER | — |
 
@@ -146,7 +146,7 @@
 | INT-02 | Spring Boot starter (auto-config, sin XML obligatorio) | S | 🟡 | MUST | A: sin `AutoConfiguration.imports`; B no compila. |
 | INT-02b | Spring tradicional (sin Boot) | S | — | LATER | — |
 | INT-03 | Spring WebFlux | S | 🔴 | MUST | — |
-| INT-04 | Quarkus (SLF4J, JBoss Logging, Mutiny) | S | 🟡 A | MUST | Handler JUL con `String.format`, sin MDC, sin Jandex. |
+| INT-04 | Quarkus (SLF4J, JBoss Logging, Mutiny) | S | 🟡 A | MUST | Handler JUL con `String.format`, sin MDC, sin Jandex. Hecho en v2 (2026-10-31): extensión con binding SLF4J propio; nativo sin verificar. |
 | INT-05 | Micronaut, Vert.x | S | — | LATER | Decidido (2026-10-31): fuera de v1, van en la siguiente versión. |
 | INT-06 | No imponer `logback.xml` dentro del jar | N | 🔴 A | MUST | A empaqueta `logback.xml` y pisa la config del consumidor. |
 | INT-07 | Core sin binding SLF4J (`logback-classic` no en core) | N | 🔴 A | MUST | Choca con Quarkus. |
