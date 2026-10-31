@@ -1,5 +1,6 @@
 package co.com.pragma.logging.spring;
 
+import io.micrometer.context.ContextRegistry;
 import io.micrometer.context.ThreadLocalAccessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -52,6 +53,17 @@ public class PragmaLogAutoConfiguration {
             // spring.reactor.context-propagation=auto; required for the request context to reach the logs.
             Hooks.enableAutomaticContextPropagation();
             return new PragmaLogContextWebFilter(properties.getHttp());
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass({Hooks.class, ContextRegistry.class})
+    static class ReactorContextKeysConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean
+        PragmaContextKeysRegistrar pragmaContextKeysRegistrar(PragmaLogProperties properties) {
+            return new PragmaContextKeysRegistrar(properties.getContextKeys());
         }
     }
 }

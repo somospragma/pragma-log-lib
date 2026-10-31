@@ -56,6 +56,7 @@ Lo que ya resuelve el ecosistema (serializar JSON, appenders, async, rotación) 
 | CFG-05 | Validación de configuración al arrancar con mensajes claros | Config inválida → warning explícito, no excepción silenciosa. |
 | PERF-01 | Overhead medido con JMH contra Logback/logstash puro | Reporte publicado; objetivo a definir (p.ej. < 2× del encoder base). |
 | INT-03 | **Spring WebFlux** (mismo starter, contexto reactivo → MDC) | App de ejemplo: el `requestId` aparece en logs emitidos desde otro hilo del pipeline. |
+| CTX-08 | **Variables propias del Reactor Context** en los logs (`pragma.log.context-keys`) | `contextWrite(Context.of("userId", id))` → aparece `userId` en todos los logs de ese flujo, en cualquier hilo, sin código extra. |
 | INT-04 | **Quarkus** (extensión sobre JBoss LogManager, incluido modo nativo) | App de ejemplo JVM y nativa con JSON + masking. |
 | PUB-01 | Publicación en **Maven Central** (ver ADR-04/05) | `implementation '<groupId>:pragma-log-...'` funciona en un proyecto limpio con solo `mavenCentral()`. |
 
@@ -75,7 +76,7 @@ Lo que ya resuelve el ecosistema (serializar JSON, appenders, async, rotación) 
 
 ### 3.3 Fuera de v1 (LATER)
 
-Captura de bodies de request/response (ENR-04), `additional-fields` con `path` JSONPath (FLD-05b), orden de campos configurable (FLD-04), `requiredFields` (FLD-07), modos de serialización `JAVA_TOSTRING`/`NONE` (SER-02), JSON pretty (FMT-03), formatos custom XML/CSV (FMT-04), hot-reload (CFG-06), Docusaurus (DOC-03), Micronaut/Vert.x.
+Captura de bodies de request/response (ENR-04), `additional-fields` con `path` JSONPath (FLD-05b), orden de campos configurable (FLD-04), `requiredFields` (FLD-07), modos de serialización `JAVA_TOSTRING`/`NONE` (SER-02), JSON pretty (FMT-03), formatos custom XML/CSV (FMT-04), hot-reload (CFG-06), Docusaurus (DOC-03). Micronaut y Vert.x (INT-05) van en la siguiente versión (decidido 2026-10-31); Quarkus sí entra en v1.
 
 ## 4. Requisitos no funcionales
 
@@ -107,6 +108,7 @@ Ver [03-decisiones-arquitectura.md](03-decisiones-arquitectura.md). Aceptadas: l
    - *Pendiente / no verificado:* `traceId`/`spanId` con Micrometer Tracing no tiene test propio (se apoya en el MDC que escribe Micrometer); status y duración del request (ENR-01) no se agregan todavía.
 5. **E4 — WebFlux → `0.3.0`:** propagación de contexto reactivo (spike ADR-12 al inicio).
    - *Hecho (2026-10-29):* `WebFilter` que pone el contexto del request en el Reactor Context; `ThreadLocalAccessor` (context-propagation) que lo copia al MDC en cada hilo, tocando solo sus claves; propagación automática activada por el starter. Tests contra Boot 4.1 y 3.5: el contexto sobrevive a cambios de hilo, no se mezcla entre 30 requests concurrentes y no queda pegado después del request. Se verificó que los tests fallan sin el accessor. App de ejemplo.
+   - *Hecho (2026-10-31):* CTX-08, variables propias del Reactor Context declaradas en `pragma.log.context-keys` salen como campos en cualquier hilo, también fuera de requests HTTP; claves reservadas detienen el arranque. Tests en Boot 4.1 y 3.5 (20 requests concurrentes, sin fugas); fallan sin el registro de los accessors.
    - *Nota:* la propagación automática tiene un costo por operador; no está medido todavía con JMH.
 6. **E5 — Quarkus → `0.4.0`:** spike ADR-11 + extensión.
 7. **E6 — SHOULDs + JMH + docs → `1.0.0`** en Maven Central.

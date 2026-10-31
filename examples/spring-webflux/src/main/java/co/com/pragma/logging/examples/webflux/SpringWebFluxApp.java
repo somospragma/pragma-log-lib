@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
+import reactor.util.context.Context;
 
 /** Spring Boot WebFlux app: the request context follows the request across Reactor threads. */
 @SpringBootApplication
@@ -33,7 +34,9 @@ public class SpringWebFluxApp {
             log.info("Looking up order {}", id);
             return Mono.just(new Order(id, "4111111111111111"))
                     .delayElement(Duration.ofMillis(50)) // simulates a non-blocking call on another thread
-                    .doOnNext(order -> log.info("Order loaded: {}", order));
+                    .doOnNext(order -> log.info("Order loaded: {}", order))
+                    // Application values: listed in pragma.log.context-keys, they appear in every log above
+                    .contextWrite(Context.of("customerId", "C-" + id));
         }
     }
 }

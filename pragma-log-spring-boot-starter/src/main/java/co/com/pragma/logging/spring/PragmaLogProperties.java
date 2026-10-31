@@ -20,6 +20,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *       fields: [password, documentId]
  *     http:
  *       headers: [X-Client-Id]
+ *     context-keys: [userId, tenantId]
  * }</pre>
  */
 @ConfigurationProperties(prefix = PragmaLogProperties.PREFIX)
@@ -44,6 +45,12 @@ public class PragmaLogProperties {
 
     /** Fields to rename, as current name: new name. */
     private Map<String, String> renameFields = new LinkedHashMap<>();
+
+    /**
+     * Reactor Context keys copied to the logs, e.g. userId for contextWrite(Context.of("userId", id)). In
+     * Spring MVC, put these values in the MDC instead.
+     */
+    private List<String> contextKeys = new ArrayList<>();
 
     private final Masking masking = new Masking();
     private final Stacktrace stacktrace = new Stacktrace();
@@ -263,6 +270,14 @@ public class PragmaLogProperties {
 
     public void setRenameFields(Map<String, String> renameFields) {
         this.renameFields = renameFields;
+    }
+
+    public List<String> getContextKeys() {
+        return contextKeys;
+    }
+
+    public void setContextKeys(List<String> contextKeys) {
+        this.contextKeys = contextKeys;
     }
 
     public Masking getMasking() {

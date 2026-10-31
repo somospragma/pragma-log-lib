@@ -13,6 +13,7 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
+import reactor.util.context.Context;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -47,6 +49,17 @@ class WebFluxIntegrationTest {
                         log.info("Order loaded {}", value);
                         return value;
                     });
+        }
+
+        @GetMapping("/users/{id}")
+        Mono<String> user(@PathVariable("id") String id) {
+            return Mono.just(id)
+                    .delayElement(Duration.ofMillis(20))
+                    .map(value -> {
+                        log.info("User loaded {}", value);
+                        return value;
+                    })
+                    .contextWrite(Context.of("userId", "user-" + id, "tenantId", 42));
         }
     }
 
@@ -113,17 +126,71 @@ class WebFluxIntegrationTest {
         }
     }
 
-    private static ConfigurableApplicationContext start() {
+    @Test
+    @DisplayName("application values in the Reactor Context reach the logs on any thread (CTX-08)")
+    void contextKeysFollowThreadHops(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.context-keys=userId,tenantId")) {
+
+            List<CompletableFuture<HttpResponse<String>>> calls = IntStream.range(0, 20)
+                    .mapToObj(i -> getPath(context, "/users/" + i, "req-u" + i))
+                    .toList();
+            calls.forEach(CompletableFuture::join);
+
+            for (int i = 0; i < 20; i++) {
+                String message = "User loaded " + i;
+                JsonNode log = jsonLines(output, message).stream()
+                        .filter(json -> json.get("message").asString().equals(message))
+                        .findFirst().orElseThrow();
+                assertThat(log.get("userId").asString()).isEqualTo("user-" + i);
+                assertThat(log.get("tenantId").asString()).isEqualTo("42");
+                assertThat(log.get("requestId").asString()).isEqualTo("req-u" + i);
+                assertThat(log.get("thread").asString()).startsWith("parallel-");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("context keys work outside HTTP requests and do not leak afterwards")
+    void contextKeysOutsideRequests(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.context-keys=userId")) {
+            assertThat(context.getBean(PragmaContextKeysRegistrar.class)).isNotNull();
+            Logger log = LoggerFactory.getLogger(WebFluxIntegrationTest.class);
+
+            Mono.delay(Duration.ofMillis(10))
+                    .doOnNext(tick -> log.info("Batch step"))
+                    .contextWrite(Context.of("userId", "batch-user"))
+                    .block();
+            Mono.delay(Duration.ofMillis(10)).doOnNext(tick -> log.info("Unrelated step")).block();
+
+            assertThat(jsonLines(output, "Batch step").get(0).get("userId").asString()).isEqualTo("batch-user");
+            assertThat(jsonLines(output, "Unrelated step").get(0).has("userId")).isFalse();
+        }
+    }
+
+    @Test
+    @DisplayName("a context key reserved by pragma-log stops startup with a clear message")
+    void reservedContextKeyFailsFast() {
+        assertThatThrownBy(() -> start("pragma.log.context-keys=requestId").close())
+                .hasStackTraceContaining("Invalid pragma.log.context-keys entry 'requestId'");
+    }
+
+    private static ConfigurableApplicationContext start(String... extraProperties) {
         return new SpringApplicationBuilder(TestApp.class)
                 .properties("server.port=0", "spring.application.name=orders-service", "spring.main.banner-mode=off",
                         "spring.main.web-application-type=reactive")
+                .properties(extraProperties)
                 .run();
     }
 
     private static CompletableFuture<HttpResponse<String>> get(ConfigurableApplicationContext context, String id,
             String requestId) {
+        return getPath(context, "/orders/" + id, requestId);
+    }
+
+    private static CompletableFuture<HttpResponse<String>> getPath(ConfigurableApplicationContext context,
+            String path, String requestId) {
         int port = context.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
-        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/orders/" + id))
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
                 .header("X-Request-Id", requestId)
                 .build();
         return HttpClient.newHttpClient().sendAsync(request, HttpResponse.BodyHandlers.ofString());

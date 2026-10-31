@@ -32,11 +32,22 @@ pragma:
       max-depth: 30
     http:
       headers: [X-Client-Id]           # headers a incluir (lista permitida)
+    context-keys: [userId, tenantId]   # WebFlux: valores del Reactor Context que salen en los logs
     # format: plain   # salida de consola normal de Spring (sin masking), útil en local
     # enabled: false  # apaga la librería
 ```
 
 **WebFlux:** funciona igual. El contexto del request viaja en el Reactor Context y aparece en los logs aunque el código cambie de hilo (`delayElement`, `publishOn`, llamadas no bloqueantes), sin `block()` ni ThreadLocals manuales. Para eso el starter activa la propagación automática de contexto de Reactor (equivale a `spring.reactor.context-propagation=auto`).
+
+Tus propias variables también: declara las claves en `pragma.log.context-keys` y ponlas en el Reactor Context como siempre.
+
+```java
+return userService.find(id)
+        .doOnNext(user -> log.info("User loaded"))      // sale con "userId":"u-7","tenantId":"42"
+        .contextWrite(Context.of("userId", "u-7", "tenantId", 42));
+```
+
+Funciona en cualquier flujo reactivo (también fuera de un request HTTP, p. ej. consumidores de colas), no se mezcla entre requests y no queda pegado después. Se enmascara por nombre igual que el resto (una clave `token` sale enmascarada). En Spring MVC no hace falta: usa `MDC.put("userId", id)`.
 
 El IDE autocompleta todas las propiedades `pragma.log.*`. Una configuración inválida detiene el arranque con un mensaje claro.
 

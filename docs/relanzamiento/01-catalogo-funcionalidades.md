@@ -94,6 +94,7 @@
 | CTX-05 | Propagación en WebFlux (Reactor Context → MDC) | S | 🔴 | MUST | Sin puente Context→MDC; B hace `block()`/`subscribe()` sueltos. |
 | CTX-06 | Propagación en Quarkus (Vert.x context) | S | ⚪ | MUST | — |
 | CTX-07 | Limpieza obligatoria del contexto al final del request (sin memory leaks) | S | 🟡 | MUST | — |
+| CTX-08 | Variables propias del contexto en los logs: claves declaradas en config (`pragma.log.context-keys`) que viajan en el Reactor Context y salen como campos | N | — | MUST | Pedido en el relanzamiento (2026-10-31). En MVC basta con MDC. |
 | ENR-01 | Contexto HTTP: método, path, status, duración | S | 🟡 B | SHOULD | B captura antes de ejecutar el método (status inválido). |
 | ENR-02 | `additionalFields` desde `header` / `query` | S | 🟡 A | SHOULD | A vía MDC en el interceptor. |
 | ENR-03 | Captura de headers con whitelist/blacklist | S | 🟡 B | SHOULD | Por defecto: whitelist vacía. |
@@ -146,7 +147,7 @@
 | INT-02b | Spring tradicional (sin Boot) | S | — | LATER | — |
 | INT-03 | Spring WebFlux | S | 🔴 | MUST | — |
 | INT-04 | Quarkus (SLF4J, JBoss Logging, Mutiny) | S | 🟡 A | MUST | Handler JUL con `String.format`, sin MDC, sin Jandex. |
-| INT-05 | Micronaut, Vert.x | S | — | LATER | — |
+| INT-05 | Micronaut, Vert.x | S | — | LATER | Decidido (2026-10-31): fuera de v1, van en la siguiente versión. |
 | INT-06 | No imponer `logback.xml` dentro del jar | N | 🔴 A | MUST | A empaqueta `logback.xml` y pisa la config del consumidor. |
 | INT-07 | Core sin binding SLF4J (`logback-classic` no en core) | N | 🔴 A | MUST | Choca con Quarkus. |
 
