@@ -8,6 +8,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
@@ -75,6 +78,7 @@ class QuarkusLoggingTest {
     void errors() throws Exception {
         given().header("X-Request-Id", "req-4").get("/customers/fail").then().statusCode(500);
         given().get("/missing").then().statusCode(404);
+        line("HTTP GET /missing 404"); // the last log of these requests: everything before it is written
 
         JsonNode error = lines().stream()
                 .filter(json -> json.has("error") && json.get("error").get("type").asString().endsWith("IllegalStateException"))
@@ -96,12 +100,21 @@ class QuarkusLoggingTest {
         assertThat(line("Outside any request").has("requestId")).isFalse();
     }
 
+    /** Waits a little: the request completion log is written right after the response is sent. */
     private static JsonNode line(String messagePrefix) throws IOException {
-        return lines().stream()
-                .filter(json -> json.path("message").asString("").startsWith(messagePrefix))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("No JSON log starting with '" + messagePrefix + "' in:\n"
-                        + content()));
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (true) {
+            Optional<JsonNode> found = lines().stream()
+                    .filter(json -> json.path("message").asString("").startsWith(messagePrefix))
+                    .findFirst();
+            if (found.isPresent()) {
+                return found.get();
+            }
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("No JSON log starting with '" + messagePrefix + "' in:\n" + content());
+            }
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(20));
+        }
     }
 
     private static List<JsonNode> lines() throws IOException {

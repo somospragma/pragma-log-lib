@@ -31,6 +31,8 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 import reactor.core.publisher.Mono;
 import reactor.util.context.Context;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -228,15 +230,22 @@ class WebFluxIntegrationTest {
         return HttpClient.newHttpClient().sendAsync(request, HttpResponse.BodyHandlers.ofString());
     }
 
+    /** Waits a little: the request completion log is written right after the response is sent. */
     private static List<JsonNode> jsonLines(CapturedOutput output, String messagePrefix) {
-        List<JsonNode> lines = output.getOut().lines()
-                .filter(line -> line.startsWith("{"))
-                .map(line -> JsonMapper.shared().readTree(line))
-                .filter(json -> json.path("message").asString("").startsWith(messagePrefix))
-                .toList();
-        if (lines.isEmpty()) {
-            throw new AssertionError("No JSON log starting with '" + messagePrefix + "' in:\n" + output.getOut());
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (true) {
+            List<JsonNode> lines = output.getOut().lines()
+                    .filter(line -> line.startsWith("{"))
+                    .map(line -> JsonMapper.shared().readTree(line))
+                    .filter(json -> json.path("message").asString("").startsWith(messagePrefix))
+                    .toList();
+            if (!lines.isEmpty()) {
+                return lines;
+            }
+            if (System.nanoTime() > deadline) {
+                throw new AssertionError("No JSON log starting with '" + messagePrefix + "' in:\n" + output.getOut());
+            }
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(20));
         }
-        return lines;
     }
 }
