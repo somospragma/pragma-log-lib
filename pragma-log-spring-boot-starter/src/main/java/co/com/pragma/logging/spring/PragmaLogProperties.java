@@ -37,6 +37,15 @@ public class PragmaLogProperties {
     /** Value of the "app" field. Defaults to spring.application.name. */
     private String appName;
 
+    /** Value of the "version" field. Defaults to spring.application.version; omitted when neither is set. */
+    private String version;
+
+    /** Whether the "host" field is added: HOSTNAME (the pod name in Kubernetes) or the local host name. */
+    private boolean includeHost = true;
+
+    /** Whether the "pid" field is added. */
+    private boolean includePid;
+
     /** Fixed fields added to every event, e.g. env: prod. */
     private Map<String, String> fields = new LinkedHashMap<>();
 
@@ -199,6 +208,8 @@ public class PragmaLogProperties {
         /** Request headers copied to the logs (allow list). Sensitive names are masked. */
         private List<String> headers = new ArrayList<>();
 
+        private final RequestLog requestLog = new RequestLog();
+
         public boolean isEnabled() {
             return enabled;
         }
@@ -221,6 +232,35 @@ public class PragmaLogProperties {
 
         public void setHeaders(List<String> headers) {
             this.headers = headers;
+        }
+
+        public RequestLog getRequestLog() {
+            return requestLog;
+        }
+    }
+
+    public static class RequestLog {
+
+        /** Whether one log with http.status and http.durationMs is written when each request ends. */
+        private boolean enabled = true;
+
+        /** Paths without that log, as Ant-style patterns. */
+        private List<String> excludePaths = new ArrayList<>(List.of("/actuator/**"));
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public List<String> getExcludePaths() {
+            return excludePaths;
+        }
+
+        public void setExcludePaths(List<String> excludePaths) {
+            this.excludePaths = excludePaths;
         }
     }
 
@@ -246,6 +286,30 @@ public class PragmaLogProperties {
 
     public void setAppName(String appName) {
         this.appName = appName;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    public void setVersion(String version) {
+        this.version = version;
+    }
+
+    public boolean isIncludeHost() {
+        return includeHost;
+    }
+
+    public void setIncludeHost(boolean includeHost) {
+        this.includeHost = includeHost;
+    }
+
+    public boolean isIncludePid() {
+        return includePid;
+    }
+
+    public void setIncludePid(boolean includePid) {
+        this.includePid = includePid;
     }
 
     public Map<String, String> getFields() {

@@ -10,6 +10,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,16 @@ class StarterIntegrationTest {
             log.info("Login {}", new Customer("Ana", "4111111111111111", "s3cr3t"));
             return "ok";
         }
+
+        @GetMapping("/boom")
+        String boom() {
+            throw new IllegalStateException("boom");
+        }
+
+        @GetMapping("/async")
+        CompletableFuture<String> async() {
+            return CompletableFuture.supplyAsync(() -> "later");
+        }
     }
 
     @SpringBootConfiguration
@@ -77,8 +88,8 @@ class StarterIntegrationTest {
     @Test
     @DisplayName("logs are JSON with masking, app name, fixed fields and HTTP context, without any XML")
     void jsonLogsWithRequestContext(CapturedOutput output) throws Exception {
-        try (ConfigurableApplicationContext context = start(
-                "pragma.log.fields.env=test", "pragma.log.http.headers=X-Client-Id")) {
+        try (ConfigurableApplicationContext context = start("pragma.log.fields.env=test",
+                "pragma.log.http.headers=X-Client-Id", "spring.application.version=2.3.0", "pragma.log.include-pid=true")) {
 
             HttpResponse<String> response = get(context, "req-42");
 
@@ -86,6 +97,9 @@ class StarterIntegrationTest {
             JsonNode log = jsonLine(output, "Login ");
             assertThat(log.get("app").asString()).isEqualTo("orders-service");
             assertThat(log.get("env").asString()).isEqualTo("test");
+            assertThat(log.get("version").asString()).isEqualTo("2.3.0");
+            assertThat(log.get("host").asString()).isNotBlank();
+            assertThat(log.get("pid").asLong()).isEqualTo(ProcessHandle.current().pid());
             assertThat(log.get("requestId").asString()).isEqualTo("req-42");
             assertThat(log.get("http.method").asString()).isEqualTo("GET");
             assertThat(log.get("http.path").asString()).isEqualTo("/login");
@@ -127,6 +141,74 @@ class StarterIntegrationTest {
                     .isNotEmpty()
                     .noneMatch(line -> line.startsWith("{"));
         }
+    }
+
+    @Test
+    @DisplayName("each request ends with one log carrying status and duration (ENR-01)")
+    void requestCompletionLog(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start()) {
+
+            get(context, "req-7");
+            send(context, "/boom", "req-8");
+            send(context, "/missing", "req-9");
+            send(context, "/async", "req-10");
+
+            JsonNode ok = jsonLine(output, "HTTP GET /login 200");
+            assertThat(ok.get("logger").asString()).isEqualTo(RequestCompletionLog.LOGGER_NAME);
+            assertThat(ok.get("http.status").isNumber()).isTrue();
+            assertThat(ok.get("http.status").asInt()).isEqualTo(200);
+            assertThat(ok.get("http.durationMs").isNumber()).isTrue();
+            assertThat(ok.get("requestId").asString()).isEqualTo("req-7");
+            assertThat(jsonLine(output, "HTTP GET /boom ").get("http.status").asInt()).isEqualTo(500);
+            assertThat(jsonLine(output, "HTTP GET /boom ").get("requestId").asString()).isEqualTo("req-8");
+            assertThat(jsonLine(output, "HTTP GET /missing ").get("http.status").asInt()).isEqualTo(404);
+            assertThat(jsonLine(output, "HTTP GET /async ").get("http.status").asInt()).isEqualTo(200);
+            assertThat(jsonLine(output, "HTTP GET /async ").get("requestId").asString()).isEqualTo("req-10");
+            assertThat(output.getOut().lines().filter(line -> line.contains("HTTP GET /async "))).hasSize(1);
+        }
+    }
+
+    @Test
+    @DisplayName("the request log can be excluded by path or turned off")
+    void requestCompletionLogExclusions(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.http.request-log.exclude-paths=/log*")) {
+            get(context, "req-1");
+            assertThat(output.getOut()).contains("Login ").doesNotContain("HTTP GET /login");
+        }
+        try (ConfigurableApplicationContext context = start("pragma.log.http.request-log.enabled=false")) {
+            send(context, "/boom", "req-2");
+            assertThat(output.getOut()).doesNotContain("HTTP GET /boom");
+        }
+    }
+
+    @Test
+    @DisplayName("sensitive request headers are masked when they are allow-listed (MSK-11)")
+    void sensitiveHeadersAreMasked(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start(
+                "pragma.log.http.headers=Authorization,X-Api-Key,X-Client-Id")) {
+            int port = context.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
+            HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/login"))
+                    .header("Authorization", "Bearer abc.def.ghi")
+                    .header("X-Api-Key", "key-123456")
+                    .header("X-Client-Id", "mobile")
+                    .build();
+            HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+            JsonNode log = jsonLine(output, "Login ");
+            assertThat(log.get("http.header.authorization").asString()).matches("\\*+");
+            assertThat(log.get("http.header.x-api-key").asString()).matches("\\*+");
+            assertThat(log.get("http.header.x-client-id").asString()).isEqualTo("mobile");
+            assertThat(output.getOut()).doesNotContain("abc.def.ghi").doesNotContain("key-123456");
+        }
+    }
+
+    private static HttpResponse<String> send(ConfigurableApplicationContext context, String path, String requestId)
+            throws Exception {
+        int port = context.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                .header("X-Request-Id", requestId)
+                .build();
+        return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private static ConfigurableApplicationContext start(String... properties) {

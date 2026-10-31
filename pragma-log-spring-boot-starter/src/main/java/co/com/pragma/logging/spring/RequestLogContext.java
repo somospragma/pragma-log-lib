@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
+import org.slf4j.MDC;
 
 /**
  * HTTP request context added to the logs (CTX-02, ENR-01), shared by the Servlet and WebFlux filters:
@@ -51,6 +52,27 @@ final class RequestLogContext {
     static boolean isContextKey(String key) {
         return REQUEST_ID.equals(key) || HTTP_METHOD.equals(key) || HTTP_PATH.equals(key)
                 || key.startsWith(HEADER_PREFIX);
+    }
+
+    /** Puts the context in the MDC of the current thread; returns the values it replaced, for {@link #restoreMdc}. */
+    static Map<String, String> putInMdc(Map<String, String> context) {
+        Map<String, String> previous = new LinkedHashMap<>();
+        context.forEach((key, value) -> {
+            previous.put(key, MDC.get(key));
+            MDC.put(key, value);
+        });
+        return previous;
+    }
+
+    /** Restores the MDC entries replaced by {@link #putInMdc}, leaving every other entry alone (CTX-07). */
+    static void restoreMdc(Map<String, String> previous) {
+        previous.forEach((key, value) -> {
+            if (value == null) {
+                MDC.remove(key);
+            } else {
+                MDC.put(key, value);
+            }
+        });
     }
 
     private static String requestId(String incoming) {

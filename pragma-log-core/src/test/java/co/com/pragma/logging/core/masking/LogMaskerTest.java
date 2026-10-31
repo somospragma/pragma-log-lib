@@ -192,6 +192,18 @@ class LogMaskerTest {
     }
 
     @Test
+    @DisplayName("dotted and x- prefixed names are matched by their last segment (MSK-11)")
+    void matchesLastSegmentOfDottedNames() {
+        assertThat(masker.isSensitiveName("http.header.authorization")).isTrue();
+        assertThat(masker.isSensitiveName("http.header.x-api-key")).isTrue();
+        assertThat(masker.isSensitiveName("X-Auth-Token")).isTrue();
+        assertThat(masker.isSensitiveName("x-access-token")).isTrue();
+        assertThat(masker.isSensitiveName("user.password")).isTrue();
+        assertThat(masker.isSensitiveName("http.header.x-client-id")).isFalse();
+        assertThat(masker.isSensitiveName("http.path")).isFalse();
+    }
+
+    @Test
     @DisplayName("reference cycles produce a marker instead of failing (MSK-06)")
     void cyclesProduceMarker() {
         Node a = new Node("a");

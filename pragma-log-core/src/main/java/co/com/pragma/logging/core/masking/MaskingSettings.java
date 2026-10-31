@@ -30,7 +30,8 @@ public record MaskingSettings(
     /** Field names masked by default: secure out of the box, replaceable through configuration. */
     public static final Set<String> DEFAULT_FIELDS = Set.of(
             "password", "passwd", "pwd", "secret", "token", "accessToken", "refreshToken", "idToken",
-            "apiKey", "authorization", "cookie", "cardNumber", "cvv", "cvc", "pin");
+            "apiKey", "authToken", "authorization", "proxyAuthorization", "cookie", "setCookie", "cardNumber",
+            "cvv", "cvc", "pin");
 
     public static final char DEFAULT_CHARACTER = '*';
     public static final int DEFAULT_LENGTH = 4;
@@ -58,9 +59,23 @@ public record MaskingSettings(
                 DEFAULT_MAX_DEPTH, Map.of());
     }
 
-    /** Whether a field, MDC or key-value name must be masked by name. */
+    /**
+     * Whether a field, MDC or key-value name must be masked by name. Dotted names are also checked by
+     * their last segment, without an {@code x-} header prefix: {@code http.header.x-api-key} matches
+     * {@code apiKey} (MSK-11).
+     */
     public boolean isSensitiveName(String name) {
-        return enabled && name != null && fields.contains(normalize(name));
+        if (!enabled || name == null) {
+            return false;
+        }
+        if (fields.contains(normalize(name))) {
+            return true;
+        }
+        String last = name.substring(name.lastIndexOf('.') + 1);
+        if (last.regionMatches(true, 0, "x-", 0, 2)) {
+            last = last.substring(2);
+        }
+        return last.length() < name.length() && fields.contains(normalize(last));
     }
 
     private static String normalize(String name) {

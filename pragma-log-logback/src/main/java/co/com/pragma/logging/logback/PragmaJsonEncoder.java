@@ -49,6 +49,9 @@ public class PragmaJsonEncoder extends LogstashEncoder {
     static final int DEFAULT_STACKTRACE_MAX_LENGTH = 16_384;
 
     private String appName = PragmaLogSettings.DEFAULT_APP_NAME;
+    private String appVersion;
+    private boolean includeHost = true;
+    private boolean includePid;
     private boolean maskingEnabled = true;
     private char maskCharacter = MaskingSettings.DEFAULT_CHARACTER;
     private String maskDefaultType = MaskType.FULL.name();
@@ -75,6 +78,21 @@ public class PragmaJsonEncoder extends LogstashEncoder {
 
     public String getAppName() {
         return appName;
+    }
+
+    /** Value of the "version" field; omitted when not set (FLD-12). */
+    public void setAppVersion(String appVersion) {
+        this.appVersion = appVersion;
+    }
+
+    /** Whether the "host" field is added: HOSTNAME (the pod name in Kubernetes) or the local host name. */
+    public void setIncludeHost(boolean includeHost) {
+        this.includeHost = includeHost;
+    }
+
+    /** Whether the "pid" field is added. */
+    public void setIncludePid(boolean includePid) {
+        this.includePid = includePid;
     }
 
     public void setMaskingEnabled(boolean maskingEnabled) {
@@ -278,17 +296,26 @@ public class PragmaJsonEncoder extends LogstashEncoder {
         return strategies;
     }
 
-    private Map<String, String> customFields(String app) {
-        Map<String, String> fields = new LinkedHashMap<>();
-        if (!layout.isHidden(StandardFields.APP)) {
-            fields.put(layout.nameOf(StandardFields.APP), app);
+    private Map<String, Object> customFields(String app) {
+        Map<String, Object> fields = new LinkedHashMap<>();
+        putUnlessHidden(fields, StandardFields.APP, app);
+        if (appVersion != null && !appVersion.isBlank()) {
+            putUnlessHidden(fields, StandardFields.VERSION, appVersion.trim());
         }
-        fixedFields.forEach((name, value) -> {
-            if (!layout.isHidden(name)) {
-                fields.put(layout.nameOf(name), value);
-            }
-        });
+        if (includeHost) {
+            putUnlessHidden(fields, StandardFields.HOST, HostName.resolve());
+        }
+        if (includePid) {
+            putUnlessHidden(fields, StandardFields.PID, ProcessHandle.current().pid());
+        }
+        fixedFields.forEach((name, value) -> putUnlessHidden(fields, name, value));
         return fields;
+    }
+
+    private void putUnlessHidden(Map<String, Object> fields, String name, Object value) {
+        if (value != null && !layout.isHidden(name)) {
+            fields.put(layout.nameOf(name), value);
+        }
     }
 
     private ShortenedThrowableConverter throwableConverter() {

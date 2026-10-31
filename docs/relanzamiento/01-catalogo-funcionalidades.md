@@ -46,7 +46,7 @@
 | FLD-09 | Incluir MDC automáticamente | S | ✅ A | MUST | En los encoders de A. |
 | FLD-10 | Argumentos estructurados (`log.info("msg", Map)`, `kv(...)`, objetos en `{}`) como campos | S | 🟡 A | MUST | A los agrega como `arg0..N`; el mensaje con `{}` usa `toString()` sin masking. |
 | FLD-11 | Nunca mensaje vacío | S | — | SHOULD | — |
-| FLD-12 | Versión de la app, host, pid, entorno | N | — | SHOULD | Campos típicos de observabilidad. |
+| FLD-12 | Versión de la app, host, pid, entorno | N | — | SHOULD | Campos típicos de observabilidad. Hecho en v2 (2026-10-31): `version`, `host` (default), `pid` (opt-in). |
 
 ### 1.3 Excepciones (ERR)
 
@@ -72,7 +72,7 @@
 | MSK-08 | No mutar el objeto de negocio (enmascarar una copia/representación) | N | 🔴 | MUST | Hoy ambas copias modifican el objeto original: la app ve el password enmascarado. |
 | MSK-09 | Masking por **nombre de campo** en config (clases de terceros sin anotación) | N | — | MUST | `password`, `cardNumber`, `token`… en cualquier nivel. |
 | MSK-10 | Masking por **patrón/regex** sobre el mensaje (tarjetas, emails, JWT) | N | — | SHOULD | Red de seguridad para lo que se escapa de las anotaciones. |
-| MSK-11 | Masking de headers sensibles (`Authorization`, `Cookie`) | S | 🟡 B | MUST* | *Si entra ENR-03. |
+| MSK-11 | Masking de headers sensibles (`Authorization`, `Cookie`) | S | 🟡 B | MUST* | *Si entra ENR-03. Hecho en v2 (2026-10-31). |
 | MSK-12 | Tipos de masking extensibles (REGEX, EMAIL…) | S | 🟡 | LATER | Hoy vía `CUSTOM` + nombre. |
 
 ### 1.5 Serialización de objetos (SER)
@@ -87,7 +87,7 @@
 
 | ID | Funcionalidad | Origen | Estado actual | v1 | Notas |
 |---|---|---|---|---|---|
-| CTX-01 | traceId / spanId desde OpenTelemetry / Micrometer Tracing | S | — | MUST | Hoy solo vía header `X-Trace-Id`; ni rastro de OTel. |
+| CTX-01 | traceId / spanId desde OpenTelemetry / Micrometer Tracing | S | — | MUST | Hoy solo vía header `X-Trace-Id`; ni rastro de OTel. Hecho en v2 (2026-10-31): verificado con Micrometer Tracing + Brave. |
 | CTX-02 | requestId: desde header o generado (UUID) | C | ✅ A | SHOULD | `LogContextInterceptor`. |
 | CTX-03 | Datos custom de negocio en el contexto (`addCustomData`) | S | 🟡 B | SHOULD | Equivale a MDC; evaluar si basta con MDC + helper. |
 | CTX-04 | Propagación en Spring MVC (ThreadLocal / MDC) | S | ✅ A / 🟡 B | MUST* | *Con el starter. A hace `MDC.clear()` global: borra MDC ajeno. |
@@ -95,7 +95,7 @@
 | CTX-06 | Propagación en Quarkus (Vert.x context) | S | ⚪ | MUST | — |
 | CTX-07 | Limpieza obligatoria del contexto al final del request (sin memory leaks) | S | 🟡 | MUST | — |
 | CTX-08 | Variables propias del contexto en los logs: claves declaradas en config (`pragma.log.context-keys`) que viajan en el Reactor Context y salen como campos | N | — | MUST | Pedido en el relanzamiento (2026-10-31). En MVC basta con MDC. |
-| ENR-01 | Contexto HTTP: método, path, status, duración | S | 🟡 B | SHOULD | B captura antes de ejecutar el método (status inválido). |
+| ENR-01 | Contexto HTTP: método, path, status, duración | S | 🟡 B | SHOULD | B captura antes de ejecutar el método (status inválido). Hecho en v2 (2026-10-31): log de fin de request con status y duración. |
 | ENR-02 | `additionalFields` desde `header` / `query` | S | 🟡 A | SHOULD | A vía MDC en el interceptor. |
 | ENR-03 | Captura de headers con whitelist/blacklist | S | 🟡 B | SHOULD | Por defecto: whitelist vacía. |
 | ENR-04 | Captura de request/response body (opt-in) | S | ⚪ B | LATER | Coste y riesgo de datos sensibles altos. |

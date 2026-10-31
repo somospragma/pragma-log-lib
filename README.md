@@ -16,11 +16,21 @@ dependencies {
 }
 ```
 
-Cada log sale en JSON con masking, `app` = `spring.application.name` y el contexto HTTP del request (`requestId`, `http.method`, `http.path`). El `requestId` se toma del header `X-Request-Id`; si no viene o no es seguro se genera uno, y se devuelve en la respuesta. Si la app usa Micrometer Tracing, `traceId` y `spanId` aparecen solos.
+Cada log sale en JSON con masking, `app` = `spring.application.name`, `host` (en Kubernetes, el nombre del pod) y el contexto HTTP del request (`requestId`, `http.method`, `http.path`). El `requestId` se toma del header `X-Request-Id`; si no viene o no es seguro se genera uno, y se devuelve en la respuesta. Si la app usa Micrometer Tracing (Brave u OpenTelemetry), `traceId` y `spanId` aparecen solos, también en WebFlux.
+
+Al terminar cada request sale un log con el status y la duración:
+
+```json
+{"message":"HTTP GET /orders/7 200 in 12 ms","logger":"co.com.pragma.logging.http","http.status":200,"http.durationMs":12,"requestId":"req-7","http.method":"GET","http.path":"/orders/7",...}
+```
+
+Las excepciones no manejadas salen con `500` y las de Spring con su status (`404`, `400`…). Las rutas `/actuator/**` no lo generan.
 
 ```yaml
 pragma:
   log:
+    version: 1.4.2          # campo "version"; por defecto spring.application.version
+    include-pid: true       # campo "pid" (apagado por defecto); include-host: false quita "host"
     fields:                 # campos fijos
       env: prod
     hide-fields: [thread]
@@ -31,7 +41,9 @@ pragma:
     stacktrace:
       max-depth: 30
     http:
-      headers: [X-Client-Id]           # headers a incluir (lista permitida)
+      headers: [X-Client-Id]           # headers a incluir (lista permitida); los sensibles salen enmascarados
+      request-log:
+        exclude-paths: [/actuator/**, /health]   # enabled: false lo apaga
     context-keys: [userId, tenantId]   # WebFlux: valores del Reactor Context que salen en los logs
     # format: plain   # salida de consola normal de Spring (sin masking), útil en local
     # enabled: false  # apaga la librería
@@ -82,7 +94,7 @@ log.atInfo().addKeyValue("orderId", "ORD-9").log("Order placed");
 ```
 
 ```json
-{"timestamp":"2026-10-29T17:14:02.413-05:00","message":"Order placed","logger":"com.acme.Orders","thread":"main","level":"INFO","requestId":"req-123","orderId":"ORD-9","app":"my-service"}
+{"timestamp":"2026-10-29T17:14:02.413-05:00","message":"Order placed","logger":"com.acme.Orders","thread":"main","level":"INFO","requestId":"req-123","orderId":"ORD-9","app":"my-service","host":"orders-7d9f-x2k"}
 ```
 
 ## Enmascaramiento de datos sensibles
@@ -98,7 +110,7 @@ record Customer(
         @MaskedLogField(type = MaskType.HIDDEN) String cvv) {}
 ```
 
-**Por nombre**, sin anotación (clases de terceros, mapas, MDC, key-values). Por defecto: `password`, `secret`, `token`, `accessToken`, `apiKey`, `authorization`, `cardNumber`, `cvv`, entre otros. Se ignoran mayúsculas y separadores: `access_token` = `accessToken`.
+**Por nombre**, sin anotación (clases de terceros, mapas, MDC, key-values, headers). Por defecto: `password`, `secret`, `token`, `accessToken`, `apiKey`, `authToken`, `authorization`, `cookie`, `cardNumber`, `cvv`, entre otros. Se ignoran mayúsculas y separadores: `access_token` = `accessToken`. En nombres con puntos cuenta el último tramo, sin el prefijo `x-`: `http.header.x-api-key` se enmascara como `apiKey`.
 
 ```
 log.info("Customer registered: {}", customer);
@@ -133,6 +145,9 @@ Si la configuración es inválida, se reporta en el estado de Logback y se usan 
 | Propiedad del encoder | Ejemplo | Descripción |
 |---|---|---|
 | `appName` | `orders-service` | Valor del campo `app`. |
+| `appVersion` | `1.4.2` | Valor del campo `version`; sin valor, no sale. |
+| `includeHost` | `false` | Quita el campo `host` (variable `HOSTNAME` o nombre del equipo). Default `true`. |
+| `includePid` | `true` | Agrega el campo `pid`. Default `false`. |
 | `field` | `env=prod` | Campo fijo en todos los eventos; se puede repetir. |
 | `hideFields` | `thread,internalId` | Oculta campos estándar, fijos, de MDC o key-values. |
 | `renameField` | `level=severity` | Renombra cualquier campo; se puede repetir. |

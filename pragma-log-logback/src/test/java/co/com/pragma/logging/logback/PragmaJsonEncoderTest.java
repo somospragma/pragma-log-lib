@@ -246,6 +246,45 @@ class PragmaJsonEncoderTest {
         }
 
         @Test
+        @DisplayName("host is added by default; version and pid when configured (FLD-12)")
+        void versionHostAndPid() {
+            startEncoder(e -> {
+                e.setAppVersion("1.4.2");
+                e.setIncludePid(true);
+            });
+
+            JsonNode json = encode(event("Hello"));
+
+            assertThat(json.get("version").asString()).isEqualTo("1.4.2");
+            assertThat(json.get("host").asString()).isNotBlank();
+            assertThat(json.get("pid").isNumber()).isTrue();
+            assertThat(json.get("pid").asLong()).isEqualTo(ProcessHandle.current().pid());
+        }
+
+        @Test
+        @DisplayName("version, host and pid can be turned off, hidden or renamed")
+        void versionHostAndPidLayout() {
+            startEncoder(e -> {
+                e.setAppVersion("1.4.2");
+                e.setIncludePid(true);
+                e.setHideFields("pid");
+                e.addRenameField("host=host.name");
+            });
+
+            JsonNode json = encode(event("Hello"));
+
+            assertThat(json.has("pid")).isFalse();
+            assertThat(json.has("host")).isFalse();
+            assertThat(json.get("host.name").asString()).isNotBlank();
+
+            startEncoder(e -> e.setIncludeHost(false));
+            JsonNode plain = encode(event("Hello"));
+            assertThat(plain.has("host")).isFalse();
+            assertThat(plain.has("version")).isFalse();
+            assertThat(plain.has("pid")).isFalse();
+        }
+
+        @Test
         @DisplayName("malformed definitions are reported, not applied")
         void malformedDefinitions() {
             startEncoder(e -> {

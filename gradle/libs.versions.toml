@@ -28,6 +28,9 @@ spring-boot-configuration-processor = { module = "org.springframework.boot:sprin
 spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
 spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
 spring-boot-starter-webflux = { module = "org.springframework.boot:spring-boot-starter-webflux" }
+spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+spring-boot-micrometer-tracing-brave = { module = "org.springframework.boot:spring-boot-micrometer-tracing-brave" }
+micrometer-tracing-bridge-brave = { module = "io.micrometer:micrometer-tracing-bridge-brave" }
 reactor-core = { module = "io.projectreactor:reactor-core" }
 context-propagation = { module = "io.micrometer:context-propagation", version.ref = "context-propagation" }
 spring-web = { module = "org.springframework:spring-web" }

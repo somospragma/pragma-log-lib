@@ -23,6 +23,11 @@ final class PragmaJsonEncoderFactory {
         PragmaJsonEncoder encoder = new PragmaJsonEncoder();
         encoder.setContext(context);
         encoder.setAppName(appName(properties, environment));
+        encoder.setAppVersion(properties.getVersion() != null
+                ? properties.getVersion()
+                : environment.getProperty("spring.application.version"));
+        encoder.setIncludeHost(properties.isIncludeHost());
+        encoder.setIncludePid(properties.isIncludePid());
 
         properties.getFields().forEach((name, value) -> encoder.addField(name + "=" + value));
         encoder.setHideFields(String.join(",", properties.getHideFields()));

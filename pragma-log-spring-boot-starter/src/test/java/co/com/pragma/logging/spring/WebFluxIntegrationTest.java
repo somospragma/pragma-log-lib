@@ -27,6 +27,8 @@ import org.springframework.context.annotation.Import;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 import reactor.core.publisher.Mono;
 import reactor.util.context.Context;
 import tools.jackson.databind.JsonNode;
@@ -49,6 +51,16 @@ class WebFluxIntegrationTest {
                         log.info("Order loaded {}", value);
                         return value;
                     });
+        }
+
+        @GetMapping("/missing-order")
+        Mono<String> missing() {
+            return Mono.error(new ResponseStatusException(HttpStatus.NOT_FOUND));
+        }
+
+        @GetMapping("/failing-order")
+        Mono<String> failing() {
+            return Mono.delay(Duration.ofMillis(5)).then(Mono.error(new IllegalStateException("boom")));
         }
 
         @GetMapping("/users/{id}")
@@ -172,6 +184,26 @@ class WebFluxIntegrationTest {
     void reservedContextKeyFailsFast() {
         assertThatThrownBy(() -> start("pragma.log.context-keys=requestId").close())
                 .hasStackTraceContaining("Invalid pragma.log.context-keys entry 'requestId'");
+    }
+
+    @Test
+    @DisplayName("each request ends with one log carrying status and duration (ENR-01)")
+    void requestCompletionLog(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start()) {
+
+            get(context, "3", "req-3").join();
+            getPath(context, "/missing-order", "req-4").join();
+            getPath(context, "/failing-order", "req-5").join();
+
+            JsonNode ok = jsonLines(output, "HTTP GET /orders/3 200").get(0);
+            assertThat(ok.get("http.status").asInt()).isEqualTo(200);
+            assertThat(ok.get("http.durationMs").asLong()).isGreaterThanOrEqualTo(20);
+            assertThat(ok.get("requestId").asString()).isEqualTo("req-3");
+            assertThat(jsonLines(output, "HTTP GET /missing-order ").get(0).get("http.status").asInt()).isEqualTo(404);
+            JsonNode failed = jsonLines(output, "HTTP GET /failing-order ").get(0);
+            assertThat(failed.get("http.status").asInt()).isEqualTo(500);
+            assertThat(failed.get("requestId").asString()).isEqualTo("req-5");
+        }
     }
 
     private static ConfigurableApplicationContext start(String... extraProperties) {

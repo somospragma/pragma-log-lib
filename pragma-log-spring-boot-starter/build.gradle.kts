@@ -23,6 +23,8 @@ dependencies {
     testImplementation(libs.spring.boot.starter.web)
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.spring.boot.starter.webflux)
+    testImplementation(libs.spring.boot.micrometer.tracing.brave)
+    testImplementation(libs.micrometer.tracing.bridge.brave)
 }
 
 // Compatibility (ADR-12): run the same tests against Spring Boot 3.x, which uses Jackson 2.
@@ -39,6 +41,9 @@ dependencies {
     "boot3TestImplementation"(libs.spring.boot.starter.test)
     "boot3TestImplementation"(libs.spring.boot.starter.webflux)
     "boot3TestImplementation"(libs.context.propagation)
+    // Boot 3.x has no tracing modules: actuator holds the auto-configuration.
+    "boot3TestImplementation"(libs.spring.boot.starter.actuator)
+    "boot3TestImplementation"(libs.micrometer.tracing.bridge.brave)
     "boot3TestRuntimeOnly"(libs.junit.launcher)
 }
 

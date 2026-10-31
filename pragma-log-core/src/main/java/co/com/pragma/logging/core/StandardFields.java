@@ -14,12 +14,19 @@ public final class StandardFields {
     public static final String THREAD = "thread";
     public static final String MESSAGE = "message";
     public static final String APP = "app";
+    /** Application version, when configured (FLD-12). */
+    public static final String VERSION = "version";
+    /** Host name; in Kubernetes, the pod name (FLD-12). */
+    public static final String HOST = "host";
+    /** Process id, off by default (FLD-12). */
+    public static final String PID = "pid";
     public static final String STACKTRACE = "stacktrace";
     /** Structured summary of the logged exception: type, message and root cause (ERR-04). */
     public static final String ERROR = "error";
 
     /** All standard field names, in output order. */
-    public static final List<String> ALL = List.of(TIMESTAMP, LEVEL, LOGGER, THREAD, MESSAGE, APP, ERROR, STACKTRACE);
+    public static final List<String> ALL = List.of(TIMESTAMP, LEVEL, LOGGER, THREAD, MESSAGE, APP, VERSION, HOST, PID,
+            ERROR, STACKTRACE);
 
     private StandardFields() {
     }
