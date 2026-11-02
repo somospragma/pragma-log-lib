@@ -9,12 +9,17 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.concurrent.Callable;
+import java.util.function.Predicate;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringBootConfiguration;
@@ -134,16 +139,42 @@ class StarterIntegrationTest {
     }
 
     @Test
-    @DisplayName("format PLAIN keeps the regular Spring Boot console output")
-    void plainFormat(CapturedOutput output) throws Exception {
-        try (ConfigurableApplicationContext context = start("pragma.log.format=plain")) {
+    @DisplayName("format PLAIN writes readable masked text, with colors only on the console (FMT-01, FMT-05)")
+    void plainFormat(CapturedOutput output, @TempDir Path logs) throws Exception {
+        Path file = logs.resolve("app.log");
+        try (ConfigurableApplicationContext context = start("pragma.log.format=plain", "pragma.log.color.mode=always",
+                "pragma.log.color.levels.INFO=#00aa88", "pragma.log.timestamp.pattern=HH:mm:ss",
+                "logging.file.name=" + file)) {
 
             get(context, "req-1");
 
-            assertThat(output.getOut().lines().filter(line -> line.contains("Login ")))
-                    .isNotEmpty()
-                    .noneMatch(line -> line.startsWith("{"));
+            String console = output.getOut().lines().filter(line -> line.contains("Login ")).findFirst().orElseThrow();
+            assertThat(console)
+                    .matches("\\u001b\\[2m\\d{2}:\\d{2}:\\d{2}\\u001b\\[0m \\u001b\\[38;2;0;170;136m INFO\\u001b\\[0m .*")
+                    .contains("4111********1111").contains("\"password\":\"******\"")
+                    .contains(" requestId=req-1").doesNotContain("s3cr3t");
+            String written = await(() -> Files.exists(file) ? Files.readString(file) : "", text -> text.contains("Login "));
+            assertThat(written).contains("4111********1111").doesNotContain("s3cr3t").doesNotContain("\u001b[");
         }
+    }
+
+    @Test
+    @DisplayName("timestamp pattern and zone apply to JSON, and invalid ones stop startup (FMT-06)")
+    void timestampFormat(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.timestamp.pattern=[ISO_INSTANT]",
+                "pragma.log.timestamp.zone=UTC")) {
+
+            get(context, "req-1");
+
+            assertThat(jsonLine(output, "Login ").get("timestamp").asString())
+                    .matches("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z");
+        }
+        assertThatThrownBy(() -> start("pragma.log.timestamp.zone=Mars/Olympus").close())
+                .hasStackTraceContaining("Invalid pragma.log configuration")
+                .hasStackTraceContaining("Mars/Olympus");
+        assertThatThrownBy(() -> start("pragma.log.format=plain", "pragma.log.color.levels.INFO=pinkish").close())
+                .hasStackTraceContaining("Invalid pragma.log configuration")
+                .hasStackTraceContaining("pinkish");
     }
 
     @Test
@@ -248,5 +279,15 @@ class StarterIntegrationTest {
             }
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(20));
         }
+    }
+
+    private static String await(Callable<String> read, Predicate<String> done) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        String value = read.call();
+        while (!done.test(value) && System.nanoTime() < deadline) {
+            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(20));
+            value = read.call();
+        }
+        return value;
     }
 }

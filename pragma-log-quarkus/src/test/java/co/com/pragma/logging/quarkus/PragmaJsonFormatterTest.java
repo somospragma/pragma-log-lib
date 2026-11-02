@@ -2,6 +2,7 @@ package co.com.pragma.logging.quarkus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import co.com.pragma.logging.core.format.TimestampFormat;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskedLogField;
@@ -28,7 +29,8 @@ class PragmaJsonFormatterTest {
     private final Card card = new Card("Ana", "4111111111111111", "s3cr3t");
 
     private PragmaJsonFormatter formatter(Set<String> hidden, Map<String, String> renames) {
-        return new PragmaJsonFormatter(new LogMasker(MaskingSettings.defaults()), hidden, renames,
+        return new PragmaJsonFormatter(new LogMasker(MaskingSettings.defaults()),
+                TimestampFormat.of(TimestampFormat.JSON_DEFAULT, null), hidden, renames,
                 Map.of("app", "orders-service"), true, 50, 16_384, false);
     }
 
@@ -75,7 +77,7 @@ class PragmaJsonFormatterTest {
     @DisplayName("records from slf4j-jboss-logmanager are re-masked from their formatted text")
     void jbossSlf4jFallback() {
         ExtLogRecord record = new ExtLogRecord(java.util.logging.Level.INFO, "Paid with " + card + " today",
-                FormatStyle.NO_FORMAT, PragmaJsonFormatter.JBOSS_SLF4J_LOGGER);
+                FormatStyle.NO_FORMAT, RecordMasking.JBOSS_SLF4J_LOGGER);
         record.setParameters(new Object[] {card});
 
         assertThat(format(record).get("message").asString())

@@ -1,5 +1,6 @@
 package co.com.pragma.logging.quarkus;
 
+import co.com.pragma.logging.core.format.ColorMode;
 import io.quarkus.runtime.annotations.ConfigPhase;
 import io.quarkus.runtime.annotations.ConfigRoot;
 import io.smallrye.config.ConfigMapping;
@@ -27,7 +28,10 @@ public interface PragmaLogConfig {
     @WithDefault("true")
     boolean enabled();
 
-    /** Output format: JSON (default) or PLAIN, the regular Quarkus console format (no masking). */
+    /**
+     * Output format: JSON (default) or PLAIN, readable text for local development with the same masking. Use a
+     * profile to pick PLAIN locally, e.g. %dev.pragma.log.format=plain.
+     */
     @WithDefault("json")
     Format format();
 
@@ -59,6 +63,10 @@ public interface PragmaLogConfig {
     Stacktrace stacktrace();
 
     Http http();
+
+    Timestamp timestamp();
+
+    Color color();
 
     enum Format {
         JSON,
@@ -92,6 +100,31 @@ public interface PragmaLogConfig {
 
         /** Custom strategies, as name=fully qualified class name. */
         Map<String, String> strategies();
+    }
+
+    interface Timestamp {
+
+        /**
+         * DateTimeFormatter pattern, e.g. yyyy-MM-dd HH:mm:ss.SSS, or a constant in brackets, e.g. [ISO_INSTANT].
+         * Defaults to [ISO_OFFSET_DATE_TIME] in JSON and yyyy-MM-dd HH:mm:ss.SSS in PLAIN.
+         */
+        Optional<String> pattern();
+
+        /** Time zone, e.g. UTC or America/Bogota. Defaults to the system zone. */
+        Optional<String> zone();
+    }
+
+    interface Color {
+
+        /**
+         * Colors of the PLAIN console output: AUTO (only on a terminal, never with NO_COLOR), ALWAYS (e.g. in an
+         * IDE console) or NEVER. Log files never get colors.
+         */
+        @WithDefault("auto")
+        ColorMode mode();
+
+        /** Color per level as a name (red, bright_blue, faint, ...) or a hex value (#ff8800), e.g. INFO=blue. */
+        Map<String, String> levels();
     }
 
     interface Stacktrace {

@@ -3,6 +3,8 @@ package co.com.pragma.logging.quarkus;
 import co.com.pragma.logging.core.HostName;
 import co.com.pragma.logging.core.PragmaLogSettings;
 import co.com.pragma.logging.core.StandardFields;
+import co.com.pragma.logging.core.format.PlainTextFormat;
+import co.com.pragma.logging.core.format.TimestampFormat;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskingSettings;
@@ -11,6 +13,7 @@ import co.com.pragma.logging.quarkus.slf4j.PragmaSlf4jServiceProvider;
 import io.quarkus.runtime.RuntimeValue;
 import io.quarkus.runtime.annotations.Recorder;
 import java.lang.reflect.Field;
+import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,7 +25,7 @@ import java.util.logging.Formatter;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 
-/** Creates the {@link PragmaJsonFormatter} at startup from {@link PragmaLogConfig}. */
+/** Creates the {@link PragmaJsonFormatter} or {@link PragmaTextFormatter} at startup from {@link PragmaLogConfig}. */
 @Recorder
 public class PragmaLogRecorder {
 
@@ -66,13 +69,14 @@ public class PragmaLogRecorder {
     }
 
     /**
-     * The formatter for console and file logs, or empty to keep the Quarkus one.
+     * The formatter for console or file logs, or empty to keep the Quarkus one.
      *
+     * @param console whether it is for the console; files never get colors
      * @throws IllegalStateException when the configuration is invalid: startup stops with a clear message
      */
-    public RuntimeValue<Optional<Formatter>> formatter() {
+    public RuntimeValue<Optional<Formatter>> formatter(boolean console) {
         PragmaLogConfig settings = config.getValue();
-        if (!settings.enabled() || settings.format() == PragmaLogConfig.Format.PLAIN) {
+        if (!settings.enabled()) {
             return new RuntimeValue<>(Optional.empty());
         }
         LogMasker masker = new LogMasker(masking(settings.masking()));
@@ -83,14 +87,39 @@ public class PragmaLogRecorder {
                     + " com.fasterxml.jackson.core:jackson-annotations is 2.21 or newer. Cause: " + e, e);
         }
         Set<String> hidden = new HashSet<>(settings.hideFields().orElse(List.of()));
-        if (!settings.stacktrace().include()) {
-            hidden.add(StandardFields.STACKTRACE);
-        }
         warnIfSlf4jIsNotOurs();
         PragmaLogConfig.Stacktrace stacktrace = settings.stacktrace();
-        return new RuntimeValue<>(Optional.of(new PragmaJsonFormatter(masker, hidden, settings.renameFields(),
-                staticFields(settings), stacktrace.include(), stacktrace.maxDepth(), stacktrace.maxLength(),
-                stacktrace.rootCauseFirst())));
+        boolean plain = settings.format() == PragmaLogConfig.Format.PLAIN;
+        DateTimeFormatter timestamp = timestamp(settings.timestamp(),
+                plain ? TimestampFormat.PLAIN_DEFAULT : TimestampFormat.JSON_DEFAULT);
+        if (plain) {
+            return new RuntimeValue<>(Optional.of(new PragmaTextFormatter(masker,
+                    textFormat(timestamp, console && settings.color().mode().enabled(), settings.color().levels()),
+                    hidden, stacktrace.include(), stacktrace.maxDepth(), stacktrace.maxLength(),
+                    stacktrace.rootCauseFirst())));
+        }
+        if (!stacktrace.include()) {
+            hidden.add(StandardFields.STACKTRACE);
+        }
+        return new RuntimeValue<>(Optional.of(new PragmaJsonFormatter(masker, timestamp, hidden,
+                settings.renameFields(), staticFields(settings), stacktrace.include(), stacktrace.maxDepth(),
+                stacktrace.maxLength(), stacktrace.rootCauseFirst())));
+    }
+
+    private static DateTimeFormatter timestamp(PragmaLogConfig.Timestamp timestamp, String defaultPattern) {
+        try {
+            return TimestampFormat.of(timestamp.pattern().orElse(defaultPattern), timestamp.zone().orElse(null));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Invalid pragma.log configuration: " + e.getMessage(), e);
+        }
+    }
+
+    private static PlainTextFormat textFormat(DateTimeFormatter timestamp, boolean colors, Map<String, String> levels) {
+        try {
+            return new PlainTextFormat(timestamp, colors, levels);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Invalid pragma.log configuration: " + e.getMessage(), e);
+        }
     }
 
     /** slf4j-jboss-logmanager can win on classpaths Quarkus does not build, such as a test JVM. */

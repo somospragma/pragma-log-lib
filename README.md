@@ -45,7 +45,9 @@ pragma:
       request-log:
         exclude-paths: [/actuator/**, /health]   # enabled: false lo apaga
     context-keys: [userId, tenantId]   # WebFlux: valores del Reactor Context que salen en los logs
-    # format: plain   # salida de consola normal de Spring (sin masking), útil en local
+    timestamp:
+      zone: America/Bogota             # pattern: [ISO_INSTANT] o yyyy-MM-dd HH:mm:ss.SSS
+    # format: plain   # texto legible con el mismo masking, para local (ver "Texto plano y colores")
     # enabled: false  # apaga la librería
 ```
 
@@ -81,7 +83,8 @@ pragma.log.rename-fields.level=severity
 pragma.log.masking.fields=password,documentId
 pragma.log.http.headers=X-Client-Id
 pragma.log.http.request-log.exclude-paths=/q/**,/health
-# pragma.log.format=plain   # salida normal de Quarkus (sin masking), útil en local
+pragma.log.timestamp.zone=America/Bogota
+%dev.pragma.log.format=plain   # texto legible con el mismo masking en dev mode
 ```
 
 - Funciona con SLF4J (`log.info("{}", obj)`, `log.atInfo().addKeyValue(...)`) y con JBoss Logging (`Log.infof("%s", obj)`). La extensión reemplaza el binding SLF4J de Quarkus, que convertía los objetos a texto antes de poder enmascararlos.
@@ -179,12 +182,42 @@ Si la configuración es inválida, se reporta en el estado de Logback y se usan 
 | `stacktraceMaxDepth` | `30` | Frames por excepción de la cadena. Default `50`. |
 | `stacktraceMaxLength` | `8000` | Caracteres máximos del stack trace. Default `16384`. |
 | `stacktraceRootCauseFirst` | `true` | Escribe primero la causa raíz. Default `false`. |
+| `timestampPattern` | `[ISO_INSTANT]` | Patrón de `DateTimeFormatter` o una constante entre corchetes. Default `[ISO_OFFSET_DATE_TIME]`. |
+| `timeZone` | `UTC` | Zona horaria del timestamp. Default: la del sistema. |
 
 Cuando se loguea una excepción, además del `stacktrace` sale un resumen fácil de buscar:
 
 ```json
 "error":{"type":"java.lang.IllegalStateException","message":"Gateway timeout","rootCause":"java.net.SocketTimeoutException: Read timed out"}
 ```
+
+## Texto plano y colores (para local)
+
+`format: plain` cambia el JSON por una línea legible. El masking es el mismo: ningún secreto que el JSON oculte aparece en el texto.
+
+```
+2026-11-02 10:15:30.123  INFO [main] c.c.p.l.e.quarkus.CustomerResource : Customer found: {"id":"1","cardNumber":"4111********1111"} requestId=req-1
+```
+
+- Los campos de MDC y key-values van al final como `nombre=valor`; el stack trace, acotado, en las líneas siguientes. `app`, `host` y los campos fijos no salen en texto.
+- En la consola el nivel sale con color (el timestamp tenue y el logger en cian). Los archivos de log nunca llevan colores.
+- `color.mode`: `auto` (por defecto: solo en una terminal y nunca con la variable `NO_COLOR`), `always` (para la consola del IDE, que no se detecta como terminal) o `never`.
+- `color.levels`: color por nivel, con nombre (`red`, `bright_blue`, `faint`…) o hex (`#ff8800`).
+- `timestamp.pattern` y `timestamp.zone` aplican a los dos formatos. En texto el patrón por defecto es `yyyy-MM-dd HH:mm:ss.SSS`.
+- Para usar texto en local y JSON en los demás ambientes, usa perfiles: `application-local.yml` en Spring, `%dev.` en Quarkus.
+
+```yaml
+pragma:
+  log:
+    format: plain
+    color:
+      mode: always
+      levels:
+        INFO: blue
+        WARN: "#ff8800"
+```
+
+En Java puro, usa `PragmaTextEncoder` en `logback.xml`. Acepta las mismas propiedades de masking y stack trace que el JSON, más `color`, `levelColor` (`INFO=blue`, se puede repetir), `timestampPattern`, `timeZone` y `hideFields`. Pon `<color>NEVER</color>` en los appenders de archivo.
 
 ## Módulos
 

@@ -8,4 +8,4 @@ pragma:
       env: local
     http:
       headers: [X-Client-Id]
-    # format: plain   # uncomment for the regular Spring Boot console output
+    # format: plain   # uncomment for readable masked text instead of JSON

@@ -104,7 +104,7 @@ Ver [03-decisiones-arquitectura.md](03-decisiones-arquitectura.md). Aceptadas: l
    - *Hecho (2026-10-29):* ocultar/renombrar cualquier campo (FLD-02/03), campos fijos (FLD-05), stacktrace configurable y acotado (ERR-01/03), resumen `error` con causa raíz (ERR-02/04), JMH inicial ([04-rendimiento.md](04-rendimiento.md)).
    - *Funcionalmente completa.* Para publicar `0.1.0` faltan el groupId (ADR-05), la licencia y el flujo de release a Central.
 4. **E3 — Spring MVC → `0.2.0`:** starter, `@ConfigurationProperties`, filtro HTTP, trazas (CTX-01).
-   - *Hecho (2026-10-29):* starter sin XML, activado como formato de *structured logging* de Spring Boot; `pragma.log.*` con metadata para el IDE; `app` desde `spring.application.name`; filtro HTTP con `requestId` (seguro contra inyección), método, path y headers en lista permitida, restaurando el MDC previo; `format: plain` para local; config inválida detiene el arranque; compatibilidad Boot 3.5 y 4.x probada en cada build (spike ADR-12); app de ejemplo.
+   - *Hecho (2026-10-29):* starter sin XML, activado como formato de *structured logging* de Spring Boot; `pragma.log.*` con metadata para el IDE; `app` desde `spring.application.name`; filtro HTTP con `requestId` (seguro contra inyección), método, path y headers en lista permitida, restaurando el MDC previo; `format: plain` para local (desde 2026-11-02 es texto propio con masking, no el formato de Spring); config inválida detiene el arranque; compatibilidad Boot 3.5 y 4.x probada en cada build (spike ADR-12); app de ejemplo.
    - *Hecho (2026-10-31):* log de fin de request con `http.status` y `http.durationMs` en MVC (incluido async) y WebFlux, con exclusión por ruta (ENR-01); headers sensibles enmascarados por nombre, también con prefijo `x-` (MSK-11); campos `version`, `host` y `pid` (FLD-12); `traceId`/`spanId` verificados con Micrometer Tracing + Brave en MVC y WebFlux (CTX-01). Todo probado contra Boot 4.1 y 3.5.
 5. **E4 — WebFlux → `0.3.0`:** propagación de contexto reactivo (spike ADR-12 al inicio).
    - *Hecho (2026-10-29):* `WebFilter` que pone el contexto del request en el Reactor Context; `ThreadLocalAccessor` (context-propagation) que lo copia al MDC en cada hilo, tocando solo sus claves; propagación automática activada por el starter. Tests contra Boot 4.1 y 3.5: el contexto sobrevive a cambios de hilo, no se mezcla entre 30 requests concurrentes y no queda pegado después del request. Se verificó que los tests fallan sin el accessor. App de ejemplo.
@@ -119,6 +119,7 @@ Ver [03-decisiones-arquitectura.md](03-decisiones-arquitectura.md). Aceptadas: l
      - Jackson baja a 3.1.x para funcionar con `jackson-annotations` 2.21 (ADR-12).
    - *Pendiente:* verificación en modo nativo (GraalVM); propagación con `context-keys` equivalente (en Quarkus basta con MDC).
 7. **E6 — SHOULDs + JMH + docs → `1.0.0`** en Maven Central.
+   - *Hecho (2026-11-02), bloque 3:* texto plano con masking (FMT-01) en Logback, Spring y Quarkus, colores por nivel con nombre o hex (FMT-05), timestamp y zona horaria configurables en JSON y texto (FMT-06), formato por perfil documentado (FMT-09). Config inválida de formato detiene el arranque en Spring y Quarkus.
 
 ## 7. Qué se rescata del código actual
 

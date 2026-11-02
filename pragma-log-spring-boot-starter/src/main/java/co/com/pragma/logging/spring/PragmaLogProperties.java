@@ -1,5 +1,6 @@
 package co.com.pragma.logging.spring;
 
+import co.com.pragma.logging.core.format.ColorMode;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,7 +32,10 @@ public class PragmaLogProperties {
     /** Whether pragma-log is active. When false, Spring Boot logging is left untouched. */
     private boolean enabled = true;
 
-    /** Output format: JSON (default) or PLAIN, the regular Spring Boot console format (no masking). */
+    /**
+     * Output format: JSON (default) or PLAIN, readable text for local development with the same masking. Use a
+     * Spring profile to pick PLAIN locally and JSON elsewhere.
+     */
     private Format format = Format.JSON;
 
     /** Value of the "app" field. Defaults to spring.application.name. */
@@ -64,6 +68,8 @@ public class PragmaLogProperties {
     private final Masking masking = new Masking();
     private final Stacktrace stacktrace = new Stacktrace();
     private final Http http = new Http();
+    private final Timestamp timestamp = new Timestamp();
+    private final Color color = new Color();
 
     public enum Format {
         JSON,
@@ -147,6 +153,62 @@ public class PragmaLogProperties {
 
         public void setStrategies(Map<String, String> strategies) {
             this.strategies = strategies;
+        }
+    }
+
+    public static class Timestamp {
+
+        /**
+         * DateTimeFormatter pattern, e.g. yyyy-MM-dd HH:mm:ss.SSS, or a constant in brackets, e.g. [ISO_INSTANT].
+         * Defaults to [ISO_OFFSET_DATE_TIME] in JSON and yyyy-MM-dd HH:mm:ss.SSS in PLAIN.
+         */
+        private String pattern;
+
+        /** Time zone, e.g. UTC or America/Bogota. Defaults to the system zone. */
+        private String zone;
+
+        public String getPattern() {
+            return pattern;
+        }
+
+        public void setPattern(String pattern) {
+            this.pattern = pattern;
+        }
+
+        public String getZone() {
+            return zone;
+        }
+
+        public void setZone(String zone) {
+            this.zone = zone;
+        }
+    }
+
+    public static class Color {
+
+        /**
+         * Colors of the PLAIN console output: AUTO (only on a terminal, never with NO_COLOR), ALWAYS (e.g. in an
+         * IDE console) or NEVER. Log files never get colors.
+         */
+        private ColorMode mode = ColorMode.AUTO;
+
+        /** Color per level as a name (red, bright_blue, faint, ...) or a hex value (#ff8800), e.g. INFO: blue. */
+        private Map<String, String> levels = new LinkedHashMap<>();
+
+        public ColorMode getMode() {
+            return mode;
+        }
+
+        public void setMode(ColorMode mode) {
+            this.mode = mode;
+        }
+
+        public Map<String, String> getLevels() {
+            return levels;
+        }
+
+        public void setLevels(Map<String, String> levels) {
+            this.levels = levels;
         }
     }
 
@@ -354,5 +416,13 @@ public class PragmaLogProperties {
 
     public Http getHttp() {
         return http;
+    }
+
+    public Timestamp getTimestamp() {
+        return timestamp;
+    }
+
+    public Color getColor() {
+        return color;
     }
 }

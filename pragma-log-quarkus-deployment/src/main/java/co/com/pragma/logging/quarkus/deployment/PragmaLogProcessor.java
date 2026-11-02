@@ -42,13 +42,13 @@ class PragmaLogProcessor {
         recorder.preferPragmaSlf4j();
     }
 
-    /** JSON with masking for console and file logs; Quarkus keeps its formatter when pragma-log is off. */
+    /** JSON or text with masking for console and file logs; Quarkus keeps its formatter when pragma-log is off. */
     @BuildStep
     @Record(ExecutionTime.RUNTIME_INIT)
     void formatters(PragmaLogRecorder recorder, BuildProducer<LogConsoleFormatBuildItem> console,
             BuildProducer<LogFileFormatBuildItem> file) {
-        console.produce(new LogConsoleFormatBuildItem(recorder.formatter()));
-        file.produce(new LogFileFormatBuildItem(recorder.formatter()));
+        console.produce(new LogConsoleFormatBuildItem(recorder.formatter(true)));
+        file.produce(new LogFileFormatBuildItem(recorder.formatter(false)));
     }
 
     /** Request context and completion log, only for applications with an HTTP server. */

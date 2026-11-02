@@ -5,18 +5,12 @@ import co.com.pragma.logging.core.HostName;
 import co.com.pragma.logging.core.PragmaLogSettings;
 import co.com.pragma.logging.core.StandardFields;
 import co.com.pragma.logging.core.masking.LogMasker;
-import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskingSettings;
-import co.com.pragma.logging.core.masking.MaskingStrategy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import net.logstash.logback.encoder.LogstashEncoder;
 import net.logstash.logback.stacktrace.ShortenedThrowableConverter;
 import tools.jackson.databind.json.JsonMapper;
@@ -53,13 +47,7 @@ public class PragmaJsonEncoder extends LogstashEncoder {
     private String appVersion;
     private boolean includeHost = true;
     private boolean includePid;
-    private boolean maskingEnabled = true;
-    private char maskCharacter = MaskingSettings.DEFAULT_CHARACTER;
-    private String maskDefaultType = MaskType.FULL.name();
-    private int maskDefaultLength = MaskingSettings.DEFAULT_LENGTH;
-    private Set<String> maskFields = MaskingSettings.DEFAULT_FIELDS;
-    private int maskMaxDepth = MaskingSettings.DEFAULT_MAX_DEPTH;
-    private final Map<String, String> maskStrategies = new LinkedHashMap<>();
+    private final MaskingOptions masking = new MaskingOptions();
     private final Map<String, String> fixedFields = new LinkedHashMap<>();
     private final FieldLayout layout = new FieldLayout();
     private boolean includeStacktrace = true;
@@ -97,42 +85,39 @@ public class PragmaJsonEncoder extends LogstashEncoder {
     }
 
     public void setMaskingEnabled(boolean maskingEnabled) {
-        this.maskingEnabled = maskingEnabled;
+        masking.setEnabled(maskingEnabled);
     }
 
     public void setMaskCharacter(String maskCharacter) {
-        if (maskCharacter == null || maskCharacter.length() != 1) {
-            configurationError("pragma-log: maskCharacter must be exactly one character, got '" + maskCharacter + "'");
-            return;
+        try {
+            masking.setCharacter(maskCharacter);
+        } catch (IllegalArgumentException e) {
+            configurationError(e.getMessage());
         }
-        this.maskCharacter = maskCharacter.charAt(0);
     }
 
     public void setMaskDefaultType(String maskDefaultType) {
-        this.maskDefaultType = maskDefaultType;
+        masking.setDefaultType(maskDefaultType);
     }
 
     public void setMaskDefaultLength(int maskDefaultLength) {
-        this.maskDefaultLength = maskDefaultLength;
+        masking.setDefaultLength(maskDefaultLength);
     }
 
     /** Comma-separated field names masked by name; replaces the default list. */
     public void setMaskFields(String maskFields) {
-        this.maskFields = Arrays.stream(maskFields.split(","))
-                .map(String::trim)
-                .filter(name -> !name.isEmpty())
-                .collect(Collectors.toCollection(LinkedHashSet::new));
+        masking.setFields(maskFields);
     }
 
     public void setMaskMaxDepth(int maskMaxDepth) {
-        this.maskMaxDepth = maskMaxDepth;
+        masking.setMaxDepth(maskMaxDepth);
     }
 
     /** Registers a custom strategy as {@code NAME=fully.qualified.ClassName}; may be repeated. */
     public void addMaskStrategy(String definition) {
         String[] pair = splitPair("maskStrategy", definition);
         if (pair != null) {
-            maskStrategies.put(pair[0], pair[1]);
+            masking.addStrategy(pair[0], pair[1]);
         }
     }
 
@@ -253,8 +238,7 @@ public class PragmaJsonEncoder extends LogstashEncoder {
             masker.verify();
         } catch (RuntimeException | LinkageError e) {
             addWarn("pragma-log: object masking does not work on this classpath, objects will be logged as"
-                    + " <ClassName>. Check that com.fasterxml.jackson.core:jackson-annotations matches the version"
-                    + " required by Jackson 3 (with Spring Boot 3.x set jackson-bom.version to 2.22.x or newer). Cause: "
+                    + " <ClassName>. Check that com.fasterxml.jackson.core:jackson-annotations is 2.21 or newer. Cause: "
                     + e, e);
         }
     }
@@ -274,27 +258,11 @@ public class PragmaJsonEncoder extends LogstashEncoder {
      */
     private MaskingSettings buildMaskingSettings() {
         try {
-            return new MaskingSettings(maskingEnabled, maskCharacter,
-                    MaskType.valueOf(maskDefaultType.trim().toUpperCase(Locale.ROOT)), maskDefaultLength,
-                    maskFields, maskMaxDepth, loadStrategies());
+            return masking.build();
         } catch (RuntimeException e) {
             configurationError("pragma-log: invalid masking configuration, using secure defaults: " + e.getMessage(), e);
             return MaskingSettings.defaults();
         }
-    }
-
-    private Map<String, MaskingStrategy> loadStrategies() {
-        Map<String, MaskingStrategy> strategies = new LinkedHashMap<>();
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        maskStrategies.forEach((name, className) -> {
-            try {
-                Class<?> type = Class.forName(className, true, classLoader);
-                strategies.put(name, (MaskingStrategy) type.getDeclaredConstructor().newInstance());
-            } catch (ReflectiveOperationException | ClassCastException e) {
-                throw new IllegalArgumentException("cannot load mask strategy " + name + "=" + className, e);
-            }
-        });
-        return strategies;
     }
 
     private Map<String, Object> customFields(String app) {

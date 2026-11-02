@@ -5,7 +5,8 @@ import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 
 /**
- * Turns pragma-log on as the Spring Boot structured logging format, before the logging system starts.
+ * Turns pragma-log on as the Spring Boot structured logging format (JSON or masked plain text), before the
+ * logging system starts.
  * Values are added with the lowest precedence, so anything the application sets wins.
  */
 final class PragmaLogEnvironmentDefaults {
@@ -22,12 +23,14 @@ final class PragmaLogEnvironmentDefaults {
         boolean enabled = environment.getProperty(PragmaLogProperties.PREFIX + ".enabled", Boolean.class, true);
         PragmaLogProperties.Format format = environment.getProperty(PragmaLogProperties.PREFIX + ".format",
                 PragmaLogProperties.Format.class, PragmaLogProperties.Format.JSON);
-        if (!enabled || format != PragmaLogProperties.Format.JSON) {
+        if (!enabled) {
             return;
         }
-        String formatter = PragmaStructuredLogFormatter.class.getName();
+        boolean json = format == PragmaLogProperties.Format.JSON;
+        String console = (json ? PragmaStructuredLogFormatter.class : PragmaPlainConsoleFormatter.class).getName();
+        String file = (json ? PragmaStructuredLogFormatter.class : PragmaPlainFileFormatter.class).getName();
         environment.getPropertySources().addLast(new MapPropertySource(PROPERTY_SOURCE_NAME, Map.of(
-                "logging.structured.format.console", formatter,
-                "logging.structured.format.file", formatter)));
+                "logging.structured.format.console", console,
+                "logging.structured.format.file", file)));
     }
 }

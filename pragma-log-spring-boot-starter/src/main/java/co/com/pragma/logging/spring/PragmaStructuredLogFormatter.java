@@ -21,7 +21,7 @@ public class PragmaStructuredLogFormatter implements StructuredLogFormatter<ILog
     private final PragmaJsonEncoder encoder;
 
     public PragmaStructuredLogFormatter(Environment environment) {
-        this.encoder = PragmaJsonEncoderFactory.create(environment, logbackContext());
+        this.encoder = PragmaEncoderFactory.json(environment, logbackContext());
     }
 
     @Override
@@ -34,7 +34,7 @@ public class PragmaStructuredLogFormatter implements StructuredLogFormatter<ILog
         return StandardCharsets.UTF_8.equals(charset) ? encoder.encode(event) : format(event).getBytes(charset);
     }
 
-    private static Context logbackContext() {
+    static Context logbackContext() {
         return LoggerFactory.getILoggerFactory() instanceof Context context ? context : new ContextBase();
     }
 }

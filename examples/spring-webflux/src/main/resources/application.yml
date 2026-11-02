@@ -9,4 +9,4 @@ pragma:
     http:
       headers: [X-Client-Id]
     context-keys: [customerId]   # Reactor Context values copied to the logs
-    # format: plain   # uncomment for the regular Spring Boot console output
+    # format: plain   # uncomment for readable masked text instead of JSON

@@ -20,15 +20,15 @@
 
 | ID | Funcionalidad | Origen | Estado actual | v1 | Notas |
 |---|---|---|---|---|---|
-| FMT-01 | Formato CONSOLE legible (`timestamp level [thread] logger : msg`) | S | ✅ A/B | MUST | Hoy sale `ts [LEVEL] msg k=v`, no el layout de la spec. |
+| FMT-01 | Formato CONSOLE legible (`timestamp level [thread] logger : msg`) | S | ✅ A/B | MUST | Hoy sale `ts [LEVEL] msg k=v`, no el layout de la spec. **Hecho en v2 (2026-11-02):** `format: plain` con el layout de la spec y el mismo masking que el JSON, en Logback (`PragmaTextEncoder`), Spring y Quarkus. |
 | FMT-02 | JSON compacto, una línea por evento | S | 🟡 A/B | MUST | A convierte todos los valores a String (pierde tipos); B no formatea timestamp. |
 | FMT-03 | JSON pretty (`prettyPrint`) | S | ✅ | LATER | Rompe los log shippers (multilínea); solo útil en local. |
 | FMT-04 | Formatos custom (XML, CSV…) vía `LogFormatter` | S | 🟡 | LATER | Clase abstracta existe; no hay registro por config. |
-| FMT-05 | Colores ANSI por nivel (nombre o hex) | S | 🟡 | SHOULD | Solo nombres `AnsiColor`, hex no soportado; colorea la línea completa. |
-| FMT-06 | Formato de timestamp configurable (default ISO-8601 en JSON) | S | 🟡 | MUST | Zona horaria no configurable; default actual no es ISO. |
+| FMT-05 | Colores ANSI por nivel (nombre o hex) | S | 🟡 | SHOULD | Solo nombres `AnsiColor`, hex no soportado; colorea la línea completa. **Hecho en v2 (2026-11-02):** color solo en el nivel (configurable por nombre o hex), timestamp tenue y logger en cian; `auto` respeta terminal y `NO_COLOR`; los archivos nunca llevan color. |
+| FMT-06 | Formato de timestamp configurable (default ISO-8601 en JSON) | S | 🟡 | MUST | Zona horaria no configurable; default actual no es ISO. **Hecho en v2 (2026-11-02):** `timestamp.pattern` (patrón o constante `[ISO_INSTANT]`) y `timestamp.zone` en JSON y texto; default ISO-8601 con offset en JSON. |
 | FMT-07 | Seleccionar formato solo por config, sin tocar XML | S | 🟡 A | MUST | En A funciona leyendo `formatter`. |
 | FMT-08 | Formatos estándar de mercado: ECS (Elastic), Logstash, GELF | N | — | LATER | Spring Boot 3.4+ ya los trae; evaluar si el esquema Pragma se alinea a ECS. |
-| FMT-09 | Formato distinto por perfil/entorno (CONSOLE en local, JSON en prod) | N | — | SHOULD | Hoy se haría con dos archivos; en Spring sale gratis con perfiles. |
+| FMT-09 | Formato distinto por perfil/entorno (CONSOLE en local, JSON en prod) | N | — | SHOULD | Hoy se haría con dos archivos; en Spring sale gratis con perfiles. **Hecho en v2 (2026-11-02):** perfiles de Spring y `%dev.` de Quarkus, documentado. |
 
 ### 1.2 Campos y esquema (FLD)
 
