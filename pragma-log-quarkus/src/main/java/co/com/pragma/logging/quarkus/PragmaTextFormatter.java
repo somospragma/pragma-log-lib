@@ -2,7 +2,9 @@ package co.com.pragma.logging.quarkus;
 
 import co.com.pragma.logging.core.Throwables;
 import co.com.pragma.logging.core.format.PlainTextFormat;
+import co.com.pragma.logging.core.alert.LogAlerts;
 import co.com.pragma.logging.core.masking.LogMasker;
+import co.com.pragma.logging.core.masking.TextSanitizer;
 import java.util.Map;
 import java.util.Set;
 import org.jboss.logmanager.ExtFormatter;
@@ -15,6 +17,7 @@ import org.jboss.logmanager.ExtLogRecord;
 public final class PragmaTextFormatter extends ExtFormatter {
 
     private final RecordMasking masking;
+    private final LogAlerts alerts;
     private final PlainTextFormat format;
     private final Set<String> hidden;
     private final boolean includeStacktrace;
@@ -22,9 +25,10 @@ public final class PragmaTextFormatter extends ExtFormatter {
     private final int stacktraceMaxLength;
     private final boolean stacktraceRootCauseFirst;
 
-    PragmaTextFormatter(LogMasker masker, PlainTextFormat format, Set<String> hidden, boolean includeStacktrace,
+    PragmaTextFormatter(LogMasker masker, TextSanitizer sanitizer, LogAlerts alerts, PlainTextFormat format, Set<String> hidden, boolean includeStacktrace,
             int stacktraceMaxDepth, int stacktraceMaxLength, boolean stacktraceRootCauseFirst) {
-        this.masking = new RecordMasking(masker);
+        this.masking = new RecordMasking(masker, sanitizer);
+        this.alerts = alerts;
         this.format = format;
         this.hidden = Set.copyOf(hidden);
         this.includeStacktrace = includeStacktrace;
@@ -43,14 +47,18 @@ public final class PragmaTextFormatter extends ExtFormatter {
             fields = masking.fields(record);
             fields.keySet().removeAll(hidden);
         } catch (RuntimeException | LinkageError | StackOverflowError e) {
-            message = record.getMessage();
+            alerts.maskingError(record.getLoggerName(), e);
+            message = masking.sanitizer().text(record.getMessage());
             fields = Map.of(PragmaJsonFormatter.ERROR_FIELD, e.getClass().getName());
         }
         Throwable thrown = record.getThrown();
         String stacktrace = thrown != null && includeStacktrace
-                ? Throwables.stackTrace(thrown, stacktraceMaxDepth, stacktraceMaxLength, stacktraceRootCauseFirst)
+                ? masking.sanitizer().maskOnly(Throwables.stackTrace(thrown, stacktraceMaxDepth, stacktraceMaxLength,
+                        stacktraceRootCauseFirst))
                 : null;
-        return format.format(record.getInstant(), RecordMasking.level(record.getLevel()), record.getThreadName(),
+        String line = format.format(record.getInstant(), RecordMasking.level(record.getLevel()), record.getThreadName(),
                 record.getLoggerName(), message, fields, stacktrace);
+        alerts.checkSize(record.getLoggerName(), RecordMasking.level(record.getLevel()), line);
+        return line;
     }
 }

@@ -44,6 +44,7 @@ class QuarkusLoggingTest {
 
         assertThat(line("Audit ").get("message").asString())
                 .contains("4111********1111").endsWith("(attempt 1)");
+        assertThat(line("Gateway note: ").get("message").asString()).isEqualTo("Gateway note: charged card 4111********1111");
         assertThat(Files.readString(LOG)).doesNotContain("s3cr3t").doesNotContain("4111111111111111");
     }
 

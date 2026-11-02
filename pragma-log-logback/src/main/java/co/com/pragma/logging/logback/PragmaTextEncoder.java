@@ -5,8 +5,10 @@ import ch.qos.logback.core.encoder.EncoderBase;
 import co.com.pragma.logging.core.format.ColorMode;
 import co.com.pragma.logging.core.format.PlainTextFormat;
 import co.com.pragma.logging.core.format.TimestampFormat;
+import co.com.pragma.logging.core.alert.LogAlerts;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskingSettings;
+import co.com.pragma.logging.core.masking.TextSanitizer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -16,7 +18,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import net.logstash.logback.stacktrace.ShortenedThrowableConverter;
 import org.slf4j.event.KeyValuePair;
 
 /**
@@ -36,6 +37,7 @@ import org.slf4j.event.KeyValuePair;
 public class PragmaTextEncoder extends EncoderBase<ILoggingEvent> {
 
     private final MaskingOptions masking = new MaskingOptions();
+    private final AlertOptions alertOptions = new AlertOptions();
     private final Map<String, String> levelColors = new LinkedHashMap<>();
     private final Set<String> hiddenFields = new HashSet<>();
     private String color = ColorMode.AUTO.name();
@@ -48,8 +50,9 @@ public class PragmaTextEncoder extends EncoderBase<ILoggingEvent> {
 
     private final List<String> configurationErrors = new ArrayList<>();
     private EventMasker eventMasker;
+    private LogAlerts alerts = LogAlerts.none();
     private PlainTextFormat format;
-    private ShortenedThrowableConverter throwableConverter;
+    private MaskingThrowableConverter throwableConverter;
 
     public void setMaskingEnabled(boolean maskingEnabled) {
         masking.setEnabled(maskingEnabled);
@@ -86,6 +89,34 @@ public class PragmaTextEncoder extends EncoderBase<ILoggingEvent> {
         if (pair != null) {
             masking.addStrategy(pair[0], pair[1]);
         }
+    }
+
+    /**
+     * Pattern masked in messages, field values and stack traces: CARD, EMAIL, JWT or a regex; may be repeated
+     * (MSK-10).
+     */
+    public void addMaskPattern(String maskPattern) {
+        masking.addPattern(maskPattern);
+    }
+
+    /** Maximum characters of the message and of each text field; longer ones are truncated. 0, the default, for no limit (FLD-08). */
+    public void setMaxFieldLength(int maxFieldLength) {
+        masking.setMaxFieldLength(maxFieldLength);
+    }
+
+    /** UTF-8 bytes of an event above which alert listeners are notified; 0, the default, disables it (ALR-01). */
+    public void setMaxLogSize(long maxLogSize) {
+        alertOptions.setMaxLogSize(maxLogSize);
+    }
+
+    /** Class name of a {@code LogAlertListener}; may be repeated (ALR-02). */
+    public void addAlertListener(String className) {
+        alertOptions.addListener(className);
+    }
+
+    /** Whether alerts are also written to standard error, at most once per minute per logger. Default true. */
+    public void setAlertConsole(boolean alertConsole) {
+        alertOptions.setConsole(alertConsole);
     }
 
     /** AUTO (default: only on a terminal, never with NO_COLOR), ALWAYS or NEVER. */
@@ -145,14 +176,12 @@ public class PragmaTextEncoder extends EncoderBase<ILoggingEvent> {
                     + " <ClassName>. Check that com.fasterxml.jackson.core:jackson-annotations is 2.21 or newer."
                     + " Cause: " + e, e);
         }
-        eventMasker = new EventMasker(masker);
+        eventMasker = new EventMasker(masker, buildSanitizer());
+        alerts = buildAlerts();
         format = buildFormat();
-        throwableConverter = new ShortenedThrowableConverter();
+        throwableConverter = new MaskingThrowableConverter(eventMasker.sanitizer(), stacktraceMaxDepth,
+                stacktraceMaxLength, stacktraceRootCauseFirst);
         throwableConverter.setContext(getContext());
-        throwableConverter.setMaxDepthPerThrowable(stacktraceMaxDepth);
-        throwableConverter.setMaxLength(stacktraceMaxLength);
-        throwableConverter.setRootCauseFirst(stacktraceRootCauseFirst);
-        throwableConverter.setOmitCommonFrames(true);
         throwableConverter.start();
         super.start();
     }
@@ -179,9 +208,12 @@ public class PragmaTextEncoder extends EncoderBase<ILoggingEvent> {
     public byte[] encode(ILoggingEvent event) {
         // A logging call must never break the application (ADR-15).
         try {
-            return write(eventMasker.mask(event));
+            byte[] line = write(eventMasker.mask(event));
+            alerts.checkSize(event.getLoggerName(), String.valueOf(event.getLevel()), line.length);
+            return line;
         } catch (RuntimeException | LinkageError | StackOverflowError e) {
             addError("pragma-log: could not mask event, writing it without arguments", e);
+            alerts.maskingError(event.getLoggerName(), e);
             try {
                 return write(eventMasker.fallback(event, e));
             } catch (RuntimeException | LinkageError | StackOverflowError again) {
@@ -244,6 +276,25 @@ public class PragmaTextEncoder extends EncoderBase<ILoggingEvent> {
     private void configurationError(String message, Throwable cause) {
         configurationErrors.add(message);
         addError(message, cause);
+    }
+
+    /** Invalid patterns or length are reported; the event is then written without them. */
+    private TextSanitizer buildSanitizer() {
+        try {
+            return masking.sanitizer();
+        } catch (RuntimeException e) {
+            configurationError("pragma-log: invalid maskPattern or maxFieldLength: " + e.getMessage(), e);
+            return TextSanitizer.none();
+        }
+    }
+
+    private LogAlerts buildAlerts() {
+        try {
+            return alertOptions.build();
+        } catch (RuntimeException e) {
+            configurationError("pragma-log: invalid alert configuration: " + e.getMessage(), e);
+            return LogAlerts.none();
+        }
     }
 
     /** Parses {@code name=value}; reports and returns {@code null} when malformed. */

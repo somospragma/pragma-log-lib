@@ -58,6 +58,12 @@ final class PragmaEncoderFactory {
         }
         encoder.setMaskMaxDepth(masking.getMaxDepth());
         masking.getStrategies().forEach((name, className) -> encoder.addMaskStrategy(name + "=" + className));
+        masking.getPatterns().forEach(encoder::addMaskPattern);
+        encoder.setMaxFieldLength(properties.getMaxFieldLength());
+        PragmaLogProperties.Alerts alerts = properties.getAlerts();
+        encoder.setMaxLogSize(alerts.getMaxLogSize() == null ? 0 : alerts.getMaxLogSize().toBytes());
+        encoder.setAlertConsole(alerts.isConsole());
+        alerts.getListeners().forEach(encoder::addAlertListener);
 
         PragmaLogProperties.Stacktrace stacktrace = properties.getStacktrace();
         encoder.setIncludeStacktrace(stacktrace.isInclude());
@@ -95,6 +101,12 @@ final class PragmaEncoderFactory {
         }
         encoder.setMaskMaxDepth(masking.getMaxDepth());
         masking.getStrategies().forEach((name, className) -> encoder.addMaskStrategy(name + "=" + className));
+        masking.getPatterns().forEach(encoder::addMaskPattern);
+        encoder.setMaxFieldLength(properties.getMaxFieldLength());
+        PragmaLogProperties.Alerts alerts = properties.getAlerts();
+        encoder.setMaxLogSize(alerts.getMaxLogSize() == null ? 0 : alerts.getMaxLogSize().toBytes());
+        encoder.setAlertConsole(alerts.isConsole());
+        alerts.getListeners().forEach(encoder::addAlertListener);
 
         PragmaLogProperties.Stacktrace stacktrace = properties.getStacktrace();
         encoder.setIncludeStacktrace(stacktrace.isInclude());

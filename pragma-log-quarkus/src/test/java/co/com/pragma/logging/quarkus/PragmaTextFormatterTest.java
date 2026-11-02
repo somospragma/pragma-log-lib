@@ -2,14 +2,20 @@ package co.com.pragma.logging.quarkus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import co.com.pragma.logging.core.alert.LargeLogAlert;
+import co.com.pragma.logging.core.alert.LogAlertListener;
+import co.com.pragma.logging.core.alert.LogAlerts;
 import co.com.pragma.logging.core.format.PlainTextFormat;
 import co.com.pragma.logging.core.format.TimestampFormat;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskedLogField;
 import co.com.pragma.logging.core.masking.MaskingSettings;
+import co.com.pragma.logging.core.masking.PatternMasker;
+import co.com.pragma.logging.core.masking.TextSanitizer;
 import co.com.pragma.logging.quarkus.slf4j.Slf4jLogRecord;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,7 +33,12 @@ class PragmaTextFormatterTest {
     private final Card card = new Card("Ana", "4111111111111111");
 
     private PragmaTextFormatter formatter(boolean colors, Set<String> hidden) {
-        return new PragmaTextFormatter(new LogMasker(MaskingSettings.defaults()),
+        return formatter(colors, hidden, TextSanitizer.none(), LogAlerts.none());
+    }
+
+    private PragmaTextFormatter formatter(boolean colors, Set<String> hidden, TextSanitizer sanitizer,
+            LogAlerts alerts) {
+        return new PragmaTextFormatter(new LogMasker(MaskingSettings.defaults()), sanitizer, alerts,
                 new PlainTextFormat(TimestampFormat.of("HH:mm:ss", "UTC"), colors, Map.of()), hidden, true, 50,
                 16_384, false);
     }
@@ -63,5 +74,31 @@ class PragmaTextFormatterTest {
                 + "\u001b[36mco.com.pragma.Sample\u001b[0m : Charge {\"holder\":\"Ana\",\"number\":\"4111********1111\"}"
                 + " failed");
         assertThat(lines[1]).isEqualTo("java.lang.IllegalStateException: gateway down");
+    }
+
+    @Test
+    void patternsTruncationAndSizeAlerts() {
+        List<LargeLogAlert> large = new ArrayList<>();
+        LogAlerts alerts = new LogAlerts(60, false, List.of(new LogAlertListener() {
+            @Override
+            public void onLargeLog(LargeLogAlert alert) {
+                large.add(alert);
+            }
+        }));
+        PragmaTextFormatter formatter = formatter(false, Set.of(),
+                new TextSanitizer(PatternMasker.of(List.of("CARD"), '*'), 40), alerts);
+        ExtLogRecord record = at(new Slf4jLogRecord(Level.WARN, "Retry {} with card 4111111111111111 later today",
+                new Object[] {2}, List.of(), "test"));
+        record.setThrown(new IllegalStateException("card 4111111111111111"));
+
+        String text = formatter.format(record);
+
+        assertThat(text).doesNotContain("4111111111111111")
+                .contains(" : Retry 2 with card 4111********1111 later...[truncated 6 chars]")
+                .contains("java.lang.IllegalStateException: card 4111********1111");
+        assertThat(large).singleElement().satisfies(alert -> {
+            assertThat(alert.level()).isEqualTo("WARN");
+            assertThat(alert.sizeBytes()).isGreaterThan(60);
+        });
     }
 }

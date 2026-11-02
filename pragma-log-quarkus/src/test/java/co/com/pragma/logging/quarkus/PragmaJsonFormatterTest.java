@@ -2,11 +2,14 @@ package co.com.pragma.logging.quarkus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import co.com.pragma.logging.core.alert.LogAlerts;
 import co.com.pragma.logging.core.format.TimestampFormat;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskedLogField;
 import co.com.pragma.logging.core.masking.MaskingSettings;
+import co.com.pragma.logging.core.masking.PatternMasker;
+import co.com.pragma.logging.core.masking.TextSanitizer;
 import co.com.pragma.logging.quarkus.slf4j.Slf4jLogRecord;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +33,7 @@ class PragmaJsonFormatterTest {
 
     private PragmaJsonFormatter formatter(Set<String> hidden, Map<String, String> renames) {
         return new PragmaJsonFormatter(new LogMasker(MaskingSettings.defaults()),
-                TimestampFormat.of(TimestampFormat.JSON_DEFAULT, null), hidden, renames,
+                new TextSanitizer(PatternMasker.of(List.of("CARD"), '*'), 0), LogAlerts.none(), TimestampFormat.of(TimestampFormat.JSON_DEFAULT, null), hidden, renames,
                 Map.of("app", "orders-service"), true, 50, 16_384, false);
     }
 

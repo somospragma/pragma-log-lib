@@ -3,9 +3,13 @@ package co.com.pragma.logging.logback;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskingSettings;
 import co.com.pragma.logging.core.masking.MaskingStrategy;
+import co.com.pragma.logging.core.masking.PatternMasker;
+import co.com.pragma.logging.core.masking.TextSanitizer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -21,6 +25,8 @@ final class MaskingOptions {
     private Set<String> fields = MaskingSettings.DEFAULT_FIELDS;
     private int maxDepth = MaskingSettings.DEFAULT_MAX_DEPTH;
     private final Map<String, String> strategies = new LinkedHashMap<>();
+    private final List<String> patterns = new ArrayList<>();
+    private int maxFieldLength;
 
     void setEnabled(boolean enabled) {
         this.enabled = enabled;
@@ -56,6 +62,24 @@ final class MaskingOptions {
 
     void addStrategy(String name, String className) {
         strategies.put(name, className);
+    }
+
+    void addPattern(String pattern) {
+        patterns.add(pattern);
+    }
+
+    void setMaxFieldLength(int maxFieldLength) {
+        this.maxFieldLength = maxFieldLength;
+    }
+
+    /**
+     * Pattern masking (off with the masking master switch) and truncation.
+     *
+     * @throws IllegalArgumentException when the patterns or the length are invalid
+     */
+    TextSanitizer sanitizer() {
+        return new TextSanitizer(enabled ? PatternMasker.of(patterns, character) : PatternMasker.none(),
+                maxFieldLength);
     }
 
     /** @throws RuntimeException when the configuration is invalid */

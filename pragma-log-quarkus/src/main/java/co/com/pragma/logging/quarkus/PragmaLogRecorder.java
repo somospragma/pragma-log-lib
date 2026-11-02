@@ -3,15 +3,20 @@ package co.com.pragma.logging.quarkus;
 import co.com.pragma.logging.core.HostName;
 import co.com.pragma.logging.core.PragmaLogSettings;
 import co.com.pragma.logging.core.StandardFields;
+import co.com.pragma.logging.core.alert.LogAlertListener;
+import co.com.pragma.logging.core.alert.LogAlerts;
 import co.com.pragma.logging.core.format.PlainTextFormat;
 import co.com.pragma.logging.core.format.TimestampFormat;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskingSettings;
 import co.com.pragma.logging.core.masking.MaskingStrategy;
+import co.com.pragma.logging.core.masking.PatternMasker;
+import co.com.pragma.logging.core.masking.TextSanitizer;
 import co.com.pragma.logging.quarkus.slf4j.PragmaSlf4jServiceProvider;
 import io.quarkus.runtime.RuntimeValue;
 import io.quarkus.runtime.annotations.Recorder;
+import io.quarkus.runtime.configuration.MemorySize;
 import java.lang.reflect.Field;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
@@ -89,11 +94,13 @@ public class PragmaLogRecorder {
         Set<String> hidden = new HashSet<>(settings.hideFields().orElse(List.of()));
         warnIfSlf4jIsNotOurs();
         PragmaLogConfig.Stacktrace stacktrace = settings.stacktrace();
+        TextSanitizer sanitizer = sanitizer(settings);
+        LogAlerts alerts = alerts(settings.alerts());
         boolean plain = settings.format() == PragmaLogConfig.Format.PLAIN;
         DateTimeFormatter timestamp = timestamp(settings.timestamp(),
                 plain ? TimestampFormat.PLAIN_DEFAULT : TimestampFormat.JSON_DEFAULT);
         if (plain) {
-            return new RuntimeValue<>(Optional.of(new PragmaTextFormatter(masker,
+            return new RuntimeValue<>(Optional.of(new PragmaTextFormatter(masker, sanitizer, alerts,
                     textFormat(timestamp, console && settings.color().mode().enabled(), settings.color().levels()),
                     hidden, stacktrace.include(), stacktrace.maxDepth(), stacktrace.maxLength(),
                     stacktrace.rootCauseFirst())));
@@ -101,9 +108,34 @@ public class PragmaLogRecorder {
         if (!stacktrace.include()) {
             hidden.add(StandardFields.STACKTRACE);
         }
-        return new RuntimeValue<>(Optional.of(new PragmaJsonFormatter(masker, timestamp, hidden,
+        return new RuntimeValue<>(Optional.of(new PragmaJsonFormatter(masker, sanitizer, alerts, timestamp, hidden,
                 settings.renameFields(), staticFields(settings), stacktrace.include(), stacktrace.maxDepth(),
                 stacktrace.maxLength(), stacktrace.rootCauseFirst())));
+    }
+
+    private static TextSanitizer sanitizer(PragmaLogConfig settings) {
+        try {
+            PragmaLogConfig.Masking masking = settings.masking();
+            PatternMasker patterns = masking.enabled()
+                    ? PatternMasker.of(masking.patterns().orElse(List.of()), masking.character().charAt(0))
+                    : PatternMasker.none();
+            return new TextSanitizer(patterns, settings.maxFieldLength());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Invalid pragma.log configuration: " + e.getMessage(), e);
+        }
+    }
+
+    private static LogAlerts alerts(PragmaLogConfig.Alerts alerts) {
+        try {
+            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+            List<LogAlertListener> listeners = alerts.listeners().orElse(List.of()).stream()
+                    .map(className -> LogAlerts.load(className, classLoader))
+                    .toList();
+            return new LogAlerts(alerts.maxLogSize().map(MemorySize::asLongValue).orElse(0L), alerts.console(),
+                    listeners);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Invalid pragma.log configuration: " + e.getMessage(), e);
+        }
     }
 
     private static DateTimeFormatter timestamp(PragmaLogConfig.Timestamp timestamp, String defaultPattern) {

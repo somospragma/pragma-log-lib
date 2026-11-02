@@ -7,6 +7,9 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.LoggingEvent;
 import ch.qos.logback.core.status.Status;
+import co.com.pragma.logging.core.alert.LargeLogAlert;
+import co.com.pragma.logging.core.alert.LogAlertListener;
+import co.com.pragma.logging.core.alert.MaskingErrorAlert;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskedLogField;
 import co.com.pragma.logging.core.masking.MaskingStrategy;
@@ -362,6 +365,98 @@ class PragmaJsonEncoderTest {
             LoggingEvent event = new LoggingEvent(Logger.FQCN, logger, Level.ERROR, "Payment failed", failure, null);
             event.setMDCPropertyMap(Map.of());
             return event;
+        }
+    }
+
+    @Nested
+    @DisplayName("patterns, truncation and alerts")
+    class PatternsAndAlerts {
+
+        @Test
+        @DisplayName("patterns mask the message, MDC, key-values, stack trace and error summary (MSK-10)")
+        void patternsEverywhere() {
+            startEncoder(e -> {
+                e.addMaskPattern("CARD");
+                e.addMaskPattern("EMAIL");
+            });
+            LoggingEvent event = new LoggingEvent(Logger.FQCN, logger, Level.ERROR, "Charge to 4111111111111111 failed",
+                    new IllegalStateException("card 4111111111111111 rejected for ana@acme.com"), null);
+            event.setMDCPropertyMap(Map.of("customerEmail", "ana@acme.com"));
+            event.setKeyValuePairs(List.of(new KeyValuePair("note", "paid 4111 1111 1111 1111")));
+
+            String line = encodeLine(event);
+            JsonNode json = json(line);
+
+            assertThat(line).doesNotContain("4111111111111111").doesNotContain("ana@acme.com");
+            assertThat(json.get("message").asString()).isEqualTo("Charge to 4111********1111 failed");
+            assertThat(json.get("customerEmail").asString()).isEqualTo("a**@acme.com");
+            assertThat(json.get("note").asString()).isEqualTo("paid 4111 **** **** 1111");
+            assertThat(json.get("error").get("message").asString()).isEqualTo("card 4111********1111 rejected for a**@acme.com");
+            assertThat(json.get("stacktrace").asString()).contains("card 4111********1111 rejected");
+        }
+
+        @Test
+        @DisplayName("long texts are truncated, numbers and the stack trace are not (FLD-08)")
+        void truncation() {
+            startEncoder(e -> e.setMaxFieldLength(10));
+            LoggingEvent event = eventWithMdc(Map.of("path", "/a/very/long/path"), "A message longer than ten");
+            event.setKeyValuePairs(List.of(new KeyValuePair("amount", 1234567890123L)));
+
+            JsonNode json = encode(event);
+
+            assertThat(json.get("message").asString()).isEqualTo("A message ...[truncated 15 chars]");
+            assertThat(json.get("path").asString()).isEqualTo("/a/very/lo...[truncated 7 chars]");
+            assertThat(json.get("amount").asLong()).isEqualTo(1234567890123L);
+        }
+
+        @Test
+        @DisplayName("listeners hear about large logs and masking errors (ALR-01..03)")
+        void alerts() {
+            startEncoder(e -> {
+                e.setMaxLogSize(300);
+                e.setAlertConsole(false);
+                e.addAlertListener(RecordingListener.class.getName());
+            });
+            RecordingListener.ALERTS.clear();
+
+            encode(event("small"));
+            encode(event("big " + "x".repeat(400)));
+            encodeLine(eventWithMdc(new ExplodingMap(), "Payment for {} failed", new User()));
+
+            assertThat(RecordingListener.ALERTS).hasSize(2);
+            assertThat(RecordingListener.ALERTS.get(0)).isInstanceOfSatisfying(LargeLogAlert.class, alert -> {
+                assertThat(alert.logger()).isEqualTo("co.com.pragma.Sample");
+                assertThat(alert.sizeBytes()).isGreaterThan(400);
+                assertThat(alert.maxBytes()).isEqualTo(300);
+            });
+            assertThat(RecordingListener.ALERTS.get(1)).isInstanceOf(MaskingErrorAlert.class);
+        }
+
+        @Test
+        @DisplayName("invalid patterns and listeners are reported")
+        void invalidConfiguration() {
+            startEncoder(e -> {
+                e.addMaskPattern("(unclosed");
+                e.addAlertListener("com.acme.Missing");
+            });
+
+            assertThat(encoder.getConfigurationErrors())
+                    .anyMatch(error -> error.contains("invalid regex '(unclosed'"))
+                    .anyMatch(error -> error.contains("cannot load alert listener com.acme.Missing"));
+        }
+    }
+
+    public static class RecordingListener implements LogAlertListener {
+        static final List<Object> ALERTS = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+        @Override
+        public void onLargeLog(LargeLogAlert alert) {
+            ALERTS.add(alert);
+        }
+
+        @Override
+        public void onMaskingError(MaskingErrorAlert alert) {
+            ALERTS.add(alert);
         }
     }
 

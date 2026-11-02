@@ -1,6 +1,7 @@
 package co.com.pragma.logging.quarkus;
 
 import co.com.pragma.logging.core.masking.LogMasker;
+import co.com.pragma.logging.core.masking.TextSanitizer;
 import co.com.pragma.logging.quarkus.slf4j.Slf4jLogRecord;
 import java.text.MessageFormat;
 import java.time.temporal.TemporalAccessor;
@@ -21,13 +22,25 @@ final class RecordMasking {
     static final String JBOSS_SLF4J_LOGGER = "org.slf4j.impl.Slf4jLogger";
 
     private final LogMasker masker;
+    private final TextSanitizer sanitizer;
 
-    RecordMasking(LogMasker masker) {
+    RecordMasking(LogMasker masker, TextSanitizer sanitizer) {
         this.masker = masker;
+        this.sanitizer = sanitizer;
+    }
+
+    /** Pattern masking and truncation (MSK-10, FLD-08), also for stack traces and fallback messages. */
+    TextSanitizer sanitizer() {
+        return sanitizer;
+    }
+
+    /** The message with masked arguments and patterns, truncated. */
+    String message(ExtLogRecord record) {
+        return sanitizer.text(formattedMessage(record));
     }
 
     /** The message with masked arguments; a template that cannot be applied is written as is. */
-    String message(ExtLogRecord record) {
+    private String formattedMessage(ExtLogRecord record) {
         if (record instanceof Slf4jLogRecord slf4j) {
             Object[] arguments = slf4j.arguments();
             if (arguments == null || arguments.length == 0) {
@@ -117,6 +130,9 @@ final class RecordMasking {
                 put(fields, pair.key, value == null || value instanceof CharSequence || value instanceof Number
                         || value instanceof Boolean ? value : masker.toTree(value));
             }
+        }
+        if (!sanitizer.isEmpty()) {
+            fields.replaceAll((key, value) -> sanitizer.value(value));
         }
         return fields;
     }

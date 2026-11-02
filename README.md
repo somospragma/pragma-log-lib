@@ -38,6 +38,10 @@ pragma:
       level: severity
     masking:
       fields: [password, documentId]   # reemplaza la lista por defecto
+      patterns: [CARD, JWT]            # busca y enmascara en el texto (ver "Red de seguridad")
+    max-field-length: 4000             # trunca mensajes y valores de texto largos
+    alerts:
+      max-log-size: 64KB               # avisa cuando un log supera ese tamaño
     stacktrace:
       max-depth: 30
     http:
@@ -166,6 +170,25 @@ Opciones del encoder en `logback.xml` (todas opcionales):
 | `maskStrategy` | — | `NOMBRE=com.acme.MiEstrategia`; se puede repetir. |
 
 Si la configuración es inválida, se reporta en el estado de Logback y se usan los valores seguros por defecto. Si el masking de un evento falla, el log se escribe igual, sin argumentos y con el campo `pragmaLogError`.
+
+### Red de seguridad: patrones, truncado y alertas
+
+Las anotaciones y los nombres no ven datos metidos dentro de un texto (`"cobrado a la tarjeta " + numero`). Para eso está `masking.patterns`, que busca en el mensaje, en los valores de texto de MDC y key-values (también dentro de objetos), en el stack trace y en el resumen `error`:
+
+| Patrón | Qué enmascara | Resultado |
+|---|---|---|
+| `CARD` | Números de tarjeta de 13 a 19 dígitos (con espacios o guiones) que pasan la validación Luhn | `4111 **** **** 1111` |
+| `EMAIL` | La parte local del correo, menos la primera letra | `a********@acme.com` |
+| `JWT` | El token completo | `********` |
+| una regex | Lo que coincida; si tiene un grupo, solo el grupo: `password=(\S+)` | `password=*******` |
+
+Cada patrón recorre todos los logs, así que mantén la lista corta. Está apagado por defecto.
+
+- `max-field-length`: corta el mensaje y cada valor de texto largo con `...[truncated N chars]`. Primero se enmascara y después se corta, así ningún pedazo de un secreto queda visible. El stack trace tiene su propio límite.
+- `alerts.max-log-size`: cuando un log supera ese tamaño (bytes UTF-8 ya codificado), se avisa. El log se escribe completo.
+- Avisos: por defecto una línea en la salida de error, máximo una por minuto por logger (`alerts.console: false` la apaga). Para llevarlos a una métrica o una notificación, implementa `LogAlertListener` (`onLargeLog` y `onMaskingError`, que también avisa cuando un log no se pudo enmascarar). Regístralo como bean de Spring, en `alerts.listeners` con el nombre de la clase, o con `LogAlerts.register(...)`. Si hay appender de consola y de archivo, cada uno avisa por su lado.
+
+En `logback.xml`: `<maskPattern>CARD</maskPattern>` (se puede repetir), `<maxFieldLength>`, `<maxLogSize>` (bytes), `<alertListener>` (se puede repetir) y `<alertConsole>`. Un patrón o un listener inválidos detienen el arranque en Spring y Quarkus.
 
 ## Campos y excepciones
 

@@ -91,6 +91,25 @@ class PragmaTextEncoderTest {
     }
 
     @Test
+    void masksPatternsAndTruncatesInText() {
+        startEncoder(e -> {
+            e.addMaskPattern("CARD");
+            e.setMaxFieldLength(30);
+        });
+        LoggingEvent event = new LoggingEvent(Logger.FQCN, logger, Level.ERROR, "Card 4111111111111111 was rejected by the bank",
+                new IllegalStateException("card 4111111111111111"), null);
+        event.setInstant(Instant.parse("2026-11-02T15:04:05.123Z"));
+        event.setThreadName("main");
+        event.setMDCPropertyMap(Map.of());
+
+        String text = encode(event);
+
+        assertThat(text).doesNotContain("4111111111111111")
+                .contains(" : Card 4111********1111 was reje...[truncated 16 chars]")
+                .contains("java.lang.IllegalStateException: card 4111********1111");
+    }
+
+    @Test
     void reportsInvalidFormatConfiguration() {
         startEncoder(e -> {
             e.setTimeZone("Mars/Olympus");

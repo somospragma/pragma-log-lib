@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.util.unit.DataSize;
 
 /**
  * pragma-log configuration from {@code application.yml} (ADR-09).
@@ -70,6 +71,13 @@ public class PragmaLogProperties {
     private final Http http = new Http();
     private final Timestamp timestamp = new Timestamp();
     private final Color color = new Color();
+    private final Alerts alerts = new Alerts();
+
+    /**
+     * Maximum characters of the message and of each text field; longer texts are cut with
+     * "...[truncated N chars]". 0 for no limit. The stack trace has its own limit.
+     */
+    private int maxFieldLength;
 
     public enum Format {
         JSON,
@@ -98,6 +106,20 @@ public class PragmaLogProperties {
 
         /** Custom strategies, as name: fully qualified class name. */
         private Map<String, String> strategies = new LinkedHashMap<>();
+
+        /**
+         * Patterns masked in messages, text fields and stack traces: CARD (Luhn-checked card numbers), EMAIL,
+         * JWT, or a regex (with a group, only the group is masked). Each pattern scans every log: keep it short.
+         */
+        private List<String> patterns = new ArrayList<>();
+
+        public List<String> getPatterns() {
+            return patterns;
+        }
+
+        public void setPatterns(List<String> patterns) {
+            this.patterns = patterns;
+        }
 
         public boolean isEnabled() {
             return enabled;
@@ -153,6 +175,42 @@ public class PragmaLogProperties {
 
         public void setStrategies(Map<String, String> strategies) {
             this.strategies = strategies;
+        }
+    }
+
+    public static class Alerts {
+
+        /** Size of an encoded log above which listeners are notified, e.g. 64KB. Not set: no size alerts. */
+        private DataSize maxLogSize;
+
+        /** Whether alerts are also written to standard error, at most once per minute per logger. */
+        private boolean console = true;
+
+        /** LogAlertListener classes with a public no-arg constructor. LogAlertListener beans are added too. */
+        private List<String> listeners = new ArrayList<>();
+
+        public DataSize getMaxLogSize() {
+            return maxLogSize;
+        }
+
+        public void setMaxLogSize(DataSize maxLogSize) {
+            this.maxLogSize = maxLogSize;
+        }
+
+        public boolean isConsole() {
+            return console;
+        }
+
+        public void setConsole(boolean console) {
+            this.console = console;
+        }
+
+        public List<String> getListeners() {
+            return listeners;
+        }
+
+        public void setListeners(List<String> listeners) {
+            this.listeners = listeners;
         }
     }
 
@@ -424,5 +482,17 @@ public class PragmaLogProperties {
 
     public Color getColor() {
         return color;
+    }
+
+    public Alerts getAlerts() {
+        return alerts;
+    }
+
+    public int getMaxFieldLength() {
+        return maxFieldLength;
+    }
+
+    public void setMaxFieldLength(int maxFieldLength) {
+        this.maxFieldLength = maxFieldLength;
     }
 }

@@ -3,6 +3,8 @@ package co.com.pragma.logging.spring;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import co.com.pragma.logging.core.alert.LargeLogAlert;
+import co.com.pragma.logging.core.alert.LogAlertListener;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskedLogField;
 import java.net.URI;
@@ -12,7 +14,10 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.AfterEach;
@@ -28,6 +33,7 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -70,6 +76,20 @@ class StarterIntegrationTest {
     @EnableAutoConfiguration
     @Import(LoginController.class)
     static class TestApp {
+
+        @Bean
+        RecordingAlertListener recordingAlertListener() {
+            return new RecordingAlertListener();
+        }
+    }
+
+    static class RecordingAlertListener implements LogAlertListener {
+        static final List<LargeLogAlert> ALERTS = new CopyOnWriteArrayList<>();
+
+        @Override
+        public void onLargeLog(LargeLogAlert alert) {
+            ALERTS.add(alert);
+        }
     }
 
     /** Spring Boot keeps the logging format in system properties; several apps share this test JVM. */
@@ -156,6 +176,38 @@ class StarterIntegrationTest {
             String written = await(() -> Files.exists(file) ? Files.readString(file) : "", text -> text.contains("Login "));
             assertThat(written).contains("4111********1111").doesNotContain("s3cr3t").doesNotContain("\u001b[");
         }
+    }
+
+    @Test
+    @DisplayName("patterns, truncation and alert listener beans work from application properties (MSK-10, FLD-08, ALR-02)")
+    void patternsTruncationAndAlerts(CapturedOutput output) throws Exception {
+        RecordingAlertListener.ALERTS.clear();
+        try (ConfigurableApplicationContext context = start("pragma.log.masking.patterns=CARD,JWT",
+                "pragma.log.max-field-length=200", "pragma.log.alerts.max-log-size=1KB",
+                "pragma.log.alerts.console=false")) {
+            assertThat(context.isActive()).isTrue();
+            Logger log = LoggerFactory.getLogger("co.com.pragma.Payments");
+
+            log.info("Retry with card 4111111111111111 token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjMifQ.c2lnbmF0dXJl");
+            log.info("Huge {}", "x".repeat(2_000));
+
+            assertThat(jsonLine(output, "Retry with card ").get("message").asString())
+                    .isEqualTo("Retry with card 4111********1111 token ********");
+            assertThat(jsonLine(output, "Huge ").get("message").asString())
+                    .hasSize(200 + "...[truncated 1805 chars]".length()).endsWith("...[truncated 1805 chars]");
+            assertThat(output.getOut()).doesNotContain("4111111111111111");
+            assertThat(RecordingAlertListener.ALERTS).isEmpty(); // truncated below 1KB
+
+            log.atInfo().addKeyValue("data", Map.of("a", "y".repeat(150), "b", "y".repeat(150), "c", "y".repeat(150),
+                    "d", "y".repeat(150), "e", "y".repeat(150), "f", "y".repeat(150), "g", "y".repeat(150))).log("Wide");
+
+            jsonLine(output, "Wide");
+            assertThat(RecordingAlertListener.ALERTS)
+                    .anyMatch(alert -> alert.logger().equals("co.com.pragma.Payments") && alert.maxBytes() == 1024);
+        }
+        assertThatThrownBy(() -> start("pragma.log.masking.patterns=(unclosed").close())
+                .hasStackTraceContaining("Invalid pragma.log configuration")
+                .hasStackTraceContaining("(unclosed");
     }
 
     @Test

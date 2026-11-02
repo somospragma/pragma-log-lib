@@ -42,7 +42,7 @@
 | FLD-05b | `additionalFields` con `path` JSONPath (`$.request.error`) para anidar | S | 🟡 B | LATER | Solo B en JsonFormatter. |
 | FLD-06 | Objeto `extra` para campos no mapeados | S | — | DROP | Mejor campos en raíz o bajo un prefijo fijo. |
 | FLD-07 | Campos obligatorios (`requiredFields`) con validación | S | ✅ | LATER | Hoy lanza excepción: en PragmaLogger llega a la app. Nunca debe romper. |
-| FLD-08 | Truncar textos largos (`maxSizeText`) | S | ✅ | SHOULD | A convierte objetos a String al truncar; truncar solo Strings. |
+| FLD-08 | Truncar textos largos (`maxSizeText`) | S | ✅ | SHOULD | A convierte objetos a String al truncar; truncar solo Strings. **Hecho en v2 (2026-11-02):** `max-field-length` trunca el mensaje y los valores de texto (también dentro de objetos) después de enmascarar; números y stack trace no. |
 | FLD-09 | Incluir MDC automáticamente | S | ✅ A | MUST | En los encoders de A. |
 | FLD-10 | Argumentos estructurados (`log.info("msg", Map)`, `kv(...)`, objetos en `{}`) como campos | S | 🟡 A | MUST | A los agrega como `arg0..N`; el mensaje con `{}` usa `toString()` sin masking. |
 | FLD-11 | Nunca mensaje vacío | S | — | SHOULD | — |
@@ -71,7 +71,7 @@
 | MSK-07 | **Nunca** imprimir un objeto sin pasar por masking (incluido el `{}` del mensaje) | S | 🔴 | MUST | Hoy el mensaje formateado filtra secretos vía `toString()`. |
 | MSK-08 | No mutar el objeto de negocio (enmascarar una copia/representación) | N | 🔴 | MUST | Hoy ambas copias modifican el objeto original: la app ve el password enmascarado. |
 | MSK-09 | Masking por **nombre de campo** en config (clases de terceros sin anotación) | N | — | MUST | `password`, `cardNumber`, `token`… en cualquier nivel. |
-| MSK-10 | Masking por **patrón/regex** sobre el mensaje (tarjetas, emails, JWT) | N | — | SHOULD | Red de seguridad para lo que se escapa de las anotaciones. |
+| MSK-10 | Masking por **patrón/regex** sobre el mensaje (tarjetas, emails, JWT) | N | — | SHOULD | Red de seguridad para lo que se escapa de las anotaciones. **Hecho en v2 (2026-11-02):** `masking.patterns` con `CARD` (Luhn), `EMAIL`, `JWT` o regex (con grupo), en mensaje, MDC, key-values, stack trace y resumen `error`. Apagado por defecto. |
 | MSK-11 | Masking de headers sensibles (`Authorization`, `Cookie`) | S | 🟡 B | MUST* | *Si entra ENR-03. Hecho en v2 (2026-10-31). |
 | MSK-12 | Tipos de masking extensibles (REGEX, EMAIL…) | S | 🟡 | LATER | Hoy vía `CUSTOM` + nombre. |
 
@@ -108,9 +108,9 @@
 
 | ID | Funcionalidad | Origen | Estado actual | v1 | Notas |
 |---|---|---|---|---|---|
-| ALR-01 | Umbral de tamaño de log (`maxLogSize`) con alerta en consola | S | 🟡 | SHOULD | Solo funciona si hay `hooks` configurados; mide chars, no bytes. |
-| ALR-02 | Hooks `LogAlertListener` registrables por config o código | S | 🟡 | SHOULD | Por código no funciona si `hooks` está vacío. |
-| ALR-03 | Hook `onMaskingError` | S | ⚪ | SHOULD | Nunca se dispara. |
+| ALR-01 | Umbral de tamaño de log (`maxLogSize`) con alerta en consola | S | 🟡 | SHOULD | Solo funciona si hay `hooks` configurados; mide chars, no bytes. **Hecho en v2 (2026-11-02):** `alerts.max-log-size` en bytes UTF-8; aviso en stderr limitado a uno por minuto por logger, sin listeners configurados. |
+| ALR-02 | Hooks `LogAlertListener` registrables por config o código | S | 🟡 | SHOULD | Por código no funciona si `hooks` está vacío. **Hecho en v2 (2026-11-02):** por config (`alerts.listeners`), por código (`LogAlerts.register`) y como bean de Spring; un listener que falla o que loguea no rompe ni genera alertas en bucle. |
+| ALR-03 | Hook `onMaskingError` | S | ⚪ | SHOULD | Nunca se dispara. **Hecho en v2 (2026-11-02):** se dispara en cada fallback de masking o encoding (cubre también ALR-05). |
 | ALR-04 | Truncar el log si supera el umbral (opcional) | S | — | LATER | — |
 | ALR-05 | Hook de error interno de la librería (fallback) | N | — | MUST | Ligado a NFR-05: la librería nunca rompe ni pierde logs. |
 

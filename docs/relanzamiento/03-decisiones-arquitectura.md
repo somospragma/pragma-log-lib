@@ -226,7 +226,7 @@ No se exige `StructuredArguments.kv(...)` de logstash, para que el código del s
 ## ADR-15 — Nunca romper ni perder · Propuesta
 
 **Decisión.**
-- Cualquier excepción dentro del masking/encoding se captura: se emite el log con el mensaje **sin argumentos** y el campo `pragma.error`, y se notifica a `LogAlertListener.onInternalError` (ALR-05).
+- Cualquier excepción dentro del masking/encoding se captura: se emite el log con el mensaje **sin argumentos** y el campo `pragma.error`, y se notifica a `LogAlertListener.onMaskingError` (ALR-03/05; el nombre `onInternalError` se unificó con el hook de la spec).
 - Con masking fallido se emite `"[unmaskable]"`, nunca el valor original.
 - Los logs internos de la librería usan un logger con prefijo `co.com.pragma.logging.internal` que el encoder no procesa (evita reentrada).
 - No se empaqueta ningún `logback.xml` (INT-06). El core no trae binding de SLF4J (INT-07).

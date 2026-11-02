@@ -3,6 +3,7 @@ package co.com.pragma.logging.logback;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.IThrowableProxy;
 import co.com.pragma.logging.core.StandardFields;
+import co.com.pragma.logging.core.masking.TextSanitizer;
 import net.logstash.logback.composite.AbstractFieldJsonProvider;
 import tools.jackson.core.JsonGenerator;
 
@@ -15,7 +16,10 @@ import tools.jackson.core.JsonGenerator;
  */
 final class ErrorJsonProvider extends AbstractFieldJsonProvider<ILoggingEvent> {
 
-    ErrorJsonProvider() {
+    private final TextSanitizer sanitizer;
+
+    ErrorJsonProvider(TextSanitizer sanitizer) {
+        this.sanitizer = sanitizer;
         setFieldName(StandardFields.ERROR);
     }
 
@@ -29,12 +33,13 @@ final class ErrorJsonProvider extends AbstractFieldJsonProvider<ILoggingEvent> {
         generator.writeStartObject();
         generator.writeStringProperty("type", throwable.getClassName());
         if (throwable.getMessage() != null) {
-            generator.writeStringProperty("message", throwable.getMessage());
+            generator.writeStringProperty("message", sanitizer.maskOnly(throwable.getMessage()));
         }
         IThrowableProxy root = rootCause(throwable);
         if (root != throwable) {
-            generator.writeStringProperty("rootCause",
-                    root.getMessage() == null ? root.getClassName() : root.getClassName() + ": " + root.getMessage());
+            generator.writeStringProperty("rootCause", root.getMessage() == null
+                    ? root.getClassName()
+                    : root.getClassName() + ": " + sanitizer.maskOnly(root.getMessage()));
         }
         generator.writeEndObject();
     }

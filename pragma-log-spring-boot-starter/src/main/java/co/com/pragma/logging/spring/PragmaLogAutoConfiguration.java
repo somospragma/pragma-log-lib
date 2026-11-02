@@ -1,7 +1,9 @@
 package co.com.pragma.logging.spring;
 
+import co.com.pragma.logging.core.alert.LogAlertListener;
 import io.micrometer.context.ContextRegistry;
 import io.micrometer.context.ThreadLocalAccessor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -24,6 +26,12 @@ import reactor.core.publisher.Hooks;
 @ConditionalOnProperty(prefix = PragmaLogProperties.PREFIX, name = "enabled", matchIfMissing = true)
 @EnableConfigurationProperties(PragmaLogProperties.class)
 public class PragmaLogAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean
+    PragmaLogAlertRegistrar pragmaLogAlertRegistrar(ObjectProvider<LogAlertListener> listeners) {
+        return new PragmaLogAlertRegistrar(listeners.orderedStream().toList());
+    }
 
     @Configuration(proxyBeanMethods = false)
     @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)

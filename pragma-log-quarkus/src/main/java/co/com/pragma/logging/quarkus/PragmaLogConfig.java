@@ -2,6 +2,7 @@ package co.com.pragma.logging.quarkus;
 
 import co.com.pragma.logging.core.format.ColorMode;
 import io.quarkus.runtime.annotations.ConfigPhase;
+import io.quarkus.runtime.configuration.MemorySize;
 import io.quarkus.runtime.annotations.ConfigRoot;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
@@ -68,6 +69,15 @@ public interface PragmaLogConfig {
 
     Color color();
 
+    Alerts alerts();
+
+    /**
+     * Maximum characters of the message and of each text field; longer texts are cut with
+     * "...[truncated N chars]". 0 for no limit. The stack trace has its own limit.
+     */
+    @WithDefault("0")
+    int maxFieldLength();
+
     enum Format {
         JSON,
         PLAIN
@@ -100,6 +110,25 @@ public interface PragmaLogConfig {
 
         /** Custom strategies, as name=fully qualified class name. */
         Map<String, String> strategies();
+
+        /**
+         * Patterns masked in messages, text fields and stack traces: CARD (Luhn-checked card numbers), EMAIL,
+         * JWT, or a regex (with a group, only the group is masked). Each pattern scans every log: keep it short.
+         */
+        Optional<List<String>> patterns();
+    }
+
+    interface Alerts {
+
+        /** Size of an encoded log above which listeners are notified, e.g. 64K. Not set: no size alerts. */
+        Optional<MemorySize> maxLogSize();
+
+        /** Whether alerts are also written to standard error, at most once per minute per logger. */
+        @WithDefault("true")
+        boolean console();
+
+        /** LogAlertListener classes with a public no-arg constructor. */
+        Optional<List<String>> listeners();
     }
 
     interface Timestamp {

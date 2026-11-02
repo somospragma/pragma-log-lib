@@ -2,7 +2,9 @@ package co.com.pragma.logging.quarkus;
 
 import co.com.pragma.logging.core.StandardFields;
 import co.com.pragma.logging.core.Throwables;
+import co.com.pragma.logging.core.alert.LogAlerts;
 import co.com.pragma.logging.core.masking.LogMasker;
+import co.com.pragma.logging.core.masking.TextSanitizer;
 import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -29,6 +31,7 @@ public final class PragmaJsonFormatter extends ExtFormatter {
 
 
     private final RecordMasking masking;
+    private final LogAlerts alerts;
     private final Set<String> hidden;
     private final Map<String, String> renames;
     private final Map<String, Object> staticFields;
@@ -42,10 +45,12 @@ public final class PragmaJsonFormatter extends ExtFormatter {
      * @param timestamp    formatter with a zone (FMT-06)
      * @param staticFields fields written in every event (app, version, host, pid, fixed fields), by schema name
      */
-    PragmaJsonFormatter(LogMasker masker, DateTimeFormatter timestamp, Set<String> hidden, Map<String, String> renames,
+    PragmaJsonFormatter(LogMasker masker, TextSanitizer sanitizer, LogAlerts alerts, DateTimeFormatter timestamp,
+            Set<String> hidden, Map<String, String> renames,
             Map<String, Object> staticFields, boolean includeStacktrace, int stacktraceMaxDepth,
             int stacktraceMaxLength, boolean stacktraceRootCauseFirst) {
-        this.masking = new RecordMasking(masker);
+        this.masking = new RecordMasking(masker, sanitizer);
+        this.alerts = alerts;
         this.timestamp = timestamp;
         this.hidden = Set.copyOf(hidden);
         this.renames = Map.copyOf(renames);
@@ -60,8 +65,11 @@ public final class PragmaJsonFormatter extends ExtFormatter {
     public String format(ExtLogRecord record) {
         // LinkageError covers incompatible dependency versions: a logging call must never break the app (ADR-15).
         try {
-            return write(record, null);
+            String line = write(record, null);
+            alerts.checkSize(record.getLoggerName(), RecordMasking.level(record.getLevel()), line);
+            return line;
         } catch (RuntimeException | LinkageError | StackOverflowError e) {
+            alerts.maskingError(record.getLoggerName(), e);
             try {
                 return write(record, e);
             } catch (RuntimeException | LinkageError | StackOverflowError again) {
@@ -75,14 +83,17 @@ public final class PragmaJsonFormatter extends ExtFormatter {
         try (JsonGenerator json = JsonMapper.shared().createGenerator(out)) {
             json.writeStartObject();
             string(json, StandardFields.TIMESTAMP, timestamp.format(record.getInstant()));
-            string(json, StandardFields.MESSAGE, failure == null ? masking.message(record) : record.getMessage());
+            string(json, StandardFields.MESSAGE, failure == null
+                    ? masking.message(record)
+                    : masking.sanitizer().text(record.getMessage()));
             string(json, StandardFields.LOGGER, record.getLoggerName());
             string(json, StandardFields.THREAD, record.getThreadName());
             string(json, StandardFields.LEVEL, RecordMasking.level(record.getLevel()));
             Throwable thrown = record.getThrown();
             if (thrown != null && includeStacktrace) {
                 string(json, StandardFields.STACKTRACE,
-                        Throwables.stackTrace(thrown, stacktraceMaxDepth, stacktraceMaxLength, stacktraceRootCauseFirst));
+                        masking.sanitizer().maskOnly(Throwables.stackTrace(thrown, stacktraceMaxDepth,
+                                stacktraceMaxLength, stacktraceRootCauseFirst)));
             }
             if (failure == null) {
                 for (Map.Entry<String, Object> field : masking.fields(record).entrySet()) {
@@ -112,11 +123,11 @@ public final class PragmaJsonFormatter extends ExtFormatter {
         json.writeStartObject();
         json.writeStringProperty("type", thrown.getClass().getName());
         if (thrown.getMessage() != null) {
-            json.writeStringProperty("message", thrown.getMessage());
+            json.writeStringProperty("message", masking.sanitizer().maskOnly(thrown.getMessage()));
         }
         Throwable root = Throwables.rootCause(thrown);
         if (root != thrown) {
-            json.writeStringProperty("rootCause", Throwables.describe(root));
+            json.writeStringProperty("rootCause", masking.sanitizer().maskOnly(Throwables.describe(root)));
         }
         json.writeEndObject();
     }
