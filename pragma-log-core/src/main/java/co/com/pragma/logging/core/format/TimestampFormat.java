@@ -1,10 +1,9 @@
 package co.com.pragma.logging.core.format;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 
 /**
  * Timestamp pattern and time zone of the logs (FMT-06). The pattern is either a {@link DateTimeFormatter}
@@ -18,6 +17,24 @@ public final class TimestampFormat {
 
     /** Default of the plain text format. */
     public static final String PLAIN_DEFAULT = "yyyy-MM-dd HH:mm:ss.SSS";
+
+    // Listed instead of read by reflection, which native images do not allow without registration.
+    private static final Map<String, DateTimeFormatter> CONSTANTS = Map.ofEntries(
+            Map.entry("BASIC_ISO_DATE", DateTimeFormatter.BASIC_ISO_DATE),
+            Map.entry("ISO_DATE", DateTimeFormatter.ISO_DATE),
+            Map.entry("ISO_DATE_TIME", DateTimeFormatter.ISO_DATE_TIME),
+            Map.entry("ISO_INSTANT", DateTimeFormatter.ISO_INSTANT),
+            Map.entry("ISO_LOCAL_DATE", DateTimeFormatter.ISO_LOCAL_DATE),
+            Map.entry("ISO_LOCAL_DATE_TIME", DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+            Map.entry("ISO_LOCAL_TIME", DateTimeFormatter.ISO_LOCAL_TIME),
+            Map.entry("ISO_OFFSET_DATE", DateTimeFormatter.ISO_OFFSET_DATE),
+            Map.entry("ISO_OFFSET_DATE_TIME", DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+            Map.entry("ISO_OFFSET_TIME", DateTimeFormatter.ISO_OFFSET_TIME),
+            Map.entry("ISO_ORDINAL_DATE", DateTimeFormatter.ISO_ORDINAL_DATE),
+            Map.entry("ISO_TIME", DateTimeFormatter.ISO_TIME),
+            Map.entry("ISO_WEEK_DATE", DateTimeFormatter.ISO_WEEK_DATE),
+            Map.entry("ISO_ZONED_DATE_TIME", DateTimeFormatter.ISO_ZONED_DATE_TIME),
+            Map.entry("RFC_1123_DATE_TIME", DateTimeFormatter.RFC_1123_DATE_TIME));
 
     private TimestampFormat() {
     }
@@ -60,15 +77,11 @@ public final class TimestampFormat {
     }
 
     private static DateTimeFormatter constant(String name) {
-        try {
-            Field field = DateTimeFormatter.class.getField(name);
-            if (Modifier.isStatic(field.getModifiers()) && field.getType() == DateTimeFormatter.class) {
-                return (DateTimeFormatter) field.get(null);
-            }
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            // reported below
+        DateTimeFormatter formatter = CONSTANTS.get(name);
+        if (formatter == null) {
+            throw new IllegalArgumentException("pragma.log.timestamp.pattern: [" + name
+                    + "] is not a DateTimeFormatter constant such as [ISO_OFFSET_DATE_TIME]");
         }
-        throw new IllegalArgumentException("pragma.log.timestamp.pattern: [" + name
-                + "] is not a DateTimeFormatter constant such as [ISO_OFFSET_DATE_TIME]");
+        return formatter;
     }
 }

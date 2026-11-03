@@ -33,7 +33,8 @@ public enum ColorMode {
             // Java 22+ returns a console even when output is redirected; isTerminal() tells them apart.
             Method isTerminal = Console.class.getMethod("isTerminal");
             return (Boolean) isTerminal.invoke(console);
-        } catch (ReflectiveOperationException e) {
+        } catch (ReflectiveOperationException | LinkageError e) {
+            // Before Java 22, or a native image without the method registered.
             return true;
         }
     }

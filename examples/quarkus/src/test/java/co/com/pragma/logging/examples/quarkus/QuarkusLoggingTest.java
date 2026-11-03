@@ -21,7 +21,10 @@ import tools.jackson.databind.json.JsonMapper;
 @QuarkusTest
 class QuarkusLoggingTest {
 
-    private static final Path LOG = Path.of("build/test-logs/app.log");
+    /** The file the app writes; the native tests read their own. */
+    protected Path logFile() {
+        return Path.of("build/test-logs/app.log");
+    }
 
     @Test
     @DisplayName("SLF4J arguments, key-values and JBoss Logging parameters are masked (MSK-07)")
@@ -35,7 +38,6 @@ class QuarkusLoggingTest {
         assertThat(found.get("env").asString()).isEqualTo("local");
         assertThat(found.get("level").asString()).isEqualTo("INFO");
         assertThat(found.get("host").asString()).isNotBlank();
-        assertThat(found.get("pid").asLong()).isEqualTo(ProcessHandle.current().pid());
 
         JsonNode lookup = line("Lookup finished");
         assertThat(lookup.get("customerId").asString()).isEqualTo("1");
@@ -45,7 +47,25 @@ class QuarkusLoggingTest {
         assertThat(line("Audit ").get("message").asString())
                 .contains("4111********1111").endsWith("(attempt 1)");
         assertThat(line("Gateway note: ").get("message").asString()).isEqualTo("Gateway note: charged card 4111********1111");
-        assertThat(Files.readString(LOG)).doesNotContain("s3cr3t").doesNotContain("4111111111111111");
+        assertThat(Files.readString(logFile())).doesNotContain("s3cr3t").doesNotContain("4111111111111111");
+    }
+
+    @Test
+    @DisplayName("the process id is written (FLD-12)")
+    void pid() throws Exception {
+        given().get("/customers/6").then().statusCode(200);
+
+        assertThat(line("Customer found: {\"id\":\"6\"").get("pid").asLong()).isEqualTo(ProcessHandle.current().pid());
+    }
+
+    @Test
+    @DisplayName("a log above max-log-size is written whole and the configured listener is told (ALR-01, ALR-02)")
+    void largeLogAlert() throws Exception {
+        given().get("/customers/7/history").then().statusCode(200).body(org.hamcrest.Matchers.equalTo("5000"));
+
+        assertThat(line("History loaded").get("movements").size()).isEqualTo(5_000);
+        assertThat(line("Large log from co.com.pragma.logging.examples.quarkus.CustomerResource: ")
+                .get("level").asString()).isEqualTo("WARN");
     }
 
     @Test
@@ -71,7 +91,7 @@ class QuarkusLoggingTest {
         JsonNode asyncLoaded = line("Async loaded 3");
         assertThat(asyncLoaded.get("requestId").asString()).isEqualTo("req-3");
         assertThat(asyncLoaded.get("thread").asString()).isNotEqualTo(line("Async lookup 3").get("thread").asString());
-        assertThat(Files.readString(LOG)).doesNotContain("abc.def");
+        assertThat(Files.readString(logFile())).doesNotContain("abc.def");
     }
 
     @Test
@@ -102,7 +122,7 @@ class QuarkusLoggingTest {
     }
 
     /** Waits a little: the request completion log is written right after the response is sent. */
-    private static JsonNode line(String messagePrefix) throws IOException {
+    protected JsonNode line(String messagePrefix) throws IOException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (true) {
             Optional<JsonNode> found = lines().stream()
@@ -118,16 +138,16 @@ class QuarkusLoggingTest {
         }
     }
 
-    private static List<JsonNode> lines() throws IOException {
-        return Files.readAllLines(LOG).stream()
+    private List<JsonNode> lines() throws IOException {
+        return Files.readAllLines(logFile()).stream()
                 .filter(line -> line.startsWith("{"))
                 .map(line -> JsonMapper.shared().readTree(line))
                 .toList();
     }
 
-    private static String content() {
+    private String content() {
         try {
-            return Files.readString(LOG);
+            return Files.readString(logFile());
         } catch (IOException e) {
             return e.toString();
         }

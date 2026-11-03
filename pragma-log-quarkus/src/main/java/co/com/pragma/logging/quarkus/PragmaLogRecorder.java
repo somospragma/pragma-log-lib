@@ -208,7 +208,7 @@ public class PragmaLogRecorder {
             try {
                 Class<?> type = Class.forName(className, true, classLoader);
                 strategies.put(name, (MaskingStrategy) type.getDeclaredConstructor().newInstance());
-            } catch (ReflectiveOperationException | ClassCastException e) {
+            } catch (ReflectiveOperationException | ClassCastException | LinkageError e) {
                 throw new IllegalArgumentException("cannot load mask strategy " + name + "=" + className, e);
             }
         });

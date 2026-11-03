@@ -1,6 +1,8 @@
 package co.com.pragma.logging.quarkus.deployment;
 
+import co.com.pragma.logging.core.alert.LogAlertListener;
 import co.com.pragma.logging.core.masking.MaskedLogField;
+import co.com.pragma.logging.core.masking.MaskingStrategy;
 import co.com.pragma.logging.quarkus.PragmaLogHttpFilter;
 import co.com.pragma.logging.quarkus.PragmaLogRecorder;
 import co.com.pragma.logging.quarkus.slf4j.PragmaSlf4jServiceProvider;
@@ -16,11 +18,14 @@ import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.LogConsoleFormatBuildItem;
 import io.quarkus.deployment.builditem.LogFileFormatBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
+import io.quarkus.deployment.builditem.nativeimage.ReflectiveMethodBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ServiceProviderBuildItem;
+import java.lang.reflect.Modifier;
 import java.util.Set;
 import java.util.TreeSet;
 import org.jboss.jandex.AnnotationInstance;
 import org.jboss.jandex.AnnotationTarget;
+import org.jboss.jandex.ClassInfo;
 import org.jboss.jandex.DotName;
 import org.slf4j.spi.SLF4JServiceProvider;
 
@@ -29,6 +34,8 @@ class PragmaLogProcessor {
 
     private static final String FEATURE = "pragma-log";
     private static final DotName MASKED_LOG_FIELD = DotName.createSimple(MaskedLogField.class);
+    private static final DotName ALERT_LISTENER = DotName.createSimple(LogAlertListener.class);
+    private static final DotName MASKING_STRATEGY = DotName.createSimple(MaskingStrategy.class);
 
     @BuildStep
     FeatureBuildItem feature() {
@@ -85,5 +92,29 @@ class PragmaLogProcessor {
         }
         return ReflectiveClassBuildItem.builder(classes.toArray(String[]::new))
                 .constructors().methods().fields().build();
+    }
+
+    /**
+     * Native mode: alert listeners and mask strategies are created from their class names in the configuration.
+     * Implementations in the application index are registered so that works without {@code @RegisterForReflection}.
+     */
+    @BuildStep
+    ReflectiveClassBuildItem pluggableClasses(CombinedIndexBuildItem index) {
+        Set<String> classes = new TreeSet<>();
+        for (DotName type : Set.of(ALERT_LISTENER, MASKING_STRATEGY)) {
+            index.getIndex().getAllKnownImplementations(type).stream()
+                    .filter(info -> !Modifier.isAbstract(info.flags()))
+                    .map(ClassInfo::name)
+                    .map(DotName::toString)
+                    .forEach(classes::add);
+        }
+        return ReflectiveClassBuildItem.builder(classes.toArray(String[]::new)).constructors().build();
+    }
+
+    /** Native mode: colors in AUTO mode ask {@code Console.isTerminal()} (Java 22+) through reflection. */
+    @BuildStep
+    ReflectiveMethodBuildItem consoleIsTerminal() {
+        return new ReflectiveMethodBuildItem("pragma-log AUTO colors", "java.io.Console", "isTerminal",
+                new String[0]);
     }
 }

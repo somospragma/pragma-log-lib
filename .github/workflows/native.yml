@@ -1,0 +1,49 @@
+name: Quarkus native
+
+# Builds the Quarkus example as a native executable and runs QuarkusLoggingIT against it (INT-04).
+# Separate from CI because it takes about 10 minutes and only depends on core and the Quarkus modules.
+on:
+  push:
+    branches: [main, v2]
+    paths:
+      - 'pragma-log-core/**'
+      - 'pragma-log-quarkus*/**'
+      - 'examples/quarkus/**'
+      - 'gradle/**'
+      - '.github/workflows/native.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: Native tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      # The native image is built inside the Mandrel builder container; the runner has Docker.
+      - name: Build native executable and run native tests
+        run: >
+          ./gradlew :examples:quarkus:testNative
+          -Dquarkus.native.enabled=true
+          -Dquarkus.native.container-build=true
+          -Dquarkus.package.jar.enabled=false
+
+      - name: Upload test reports and logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: native-test-reports
+          path: |
+            examples/quarkus/build/reports/tests/
+            examples/quarkus/build/test-logs/

@@ -6,6 +6,7 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import java.time.Duration;
+import java.util.Collections;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +37,15 @@ public class CustomerResource {
                 .onItem().delayIt().by(Duration.ofMillis(20))
                 .emitOn(Infrastructure.getDefaultWorkerPool())
                 .invoke(value -> log.info("Async loaded {}", value));
+    }
+
+    /** Logs more than pragma.log.alerts.max-log-size: the log is written whole and the listeners are told. */
+    @GET
+    @Path("/{id}/history")
+    public int history(@PathParam("id") String id) {
+        var movements = Collections.nCopies(5_000, "purchase 10.00 USD");
+        log.atInfo().addKeyValue("customerId", id).addKeyValue("movements", movements).log("History loaded");
+        return movements.size();
     }
 
     @GET
