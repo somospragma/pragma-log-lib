@@ -42,7 +42,7 @@ jobs:
       # Output of the native executable started by the tests: startup errors are only there.
       - name: Show native app output
         if: failure()
-        run: find examples/quarkus/build -maxdepth 2 -name 'quarkus*.log' -exec sh -c 'echo "== $1"; cat "$1"' _ {} \;
+        run: find examples/quarkus -name '*.log' -not -path '*/test-results/*' -exec sh -c 'echo "== $1"; tail -200 "$1"' _ {} \;
 
       - name: Upload test reports and logs
         if: failure()
@@ -52,4 +52,4 @@ jobs:
           path: |
             examples/quarkus/build/reports/tests/
             examples/quarkus/build/test-logs/
-            examples/quarkus/build/quarkus*.log
+            examples/quarkus/**/*.log
