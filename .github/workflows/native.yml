@@ -39,6 +39,11 @@ jobs:
           -Dquarkus.native.container-build=true
           -Dquarkus.package.jar.enabled=false
 
+      # Output of the native executable started by the tests: startup errors are only there.
+      - name: Show native app output
+        if: failure()
+        run: find examples/quarkus/build -maxdepth 2 -name 'quarkus*.log' -exec sh -c 'echo "== $1"; cat "$1"' _ {} \;
+
       - name: Upload test reports and logs
         if: failure()
         uses: actions/upload-artifact@v7
@@ -47,3 +52,4 @@ jobs:
           path: |
             examples/quarkus/build/reports/tests/
             examples/quarkus/build/test-logs/
+            examples/quarkus/build/quarkus*.log
