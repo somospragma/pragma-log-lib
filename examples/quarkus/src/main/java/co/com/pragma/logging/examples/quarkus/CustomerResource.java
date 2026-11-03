@@ -25,6 +25,7 @@ public class CustomerResource {
         jbossLog.infof("Audit %s (attempt %d)", customer, 1);
         // A card inside plain text: no annotation can see it, pragma.log.masking.patterns=CARD does.
         log.info("Gateway note: {}", "charged card " + customer.cardNumber());
+        log.info("Shipping to {}", new Address("Medellin"));
         return customer;
     }
 

@@ -51,6 +51,19 @@ class QuarkusLoggingTest {
     }
 
     @Test
+    @DisplayName("a class without masking annotations is logged as JSON")
+    void plainClass() throws Exception {
+        given().get("/customers/9").then().statusCode(200);
+
+        assertThat(line("Shipping to ").get("message").asString()).isEqualTo("Shipping to " + expectedAddress());
+    }
+
+    /** In native mode classes not registered for reflection become {@code <ClassName>}. */
+    protected String expectedAddress() {
+        return "{\"city\":\"Medellin\"}";
+    }
+
+    @Test
     @DisplayName("the process id is written (FLD-12)")
     void pid() throws Exception {
         given().get("/customers/6").then().statusCode(200);

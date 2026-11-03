@@ -1,6 +1,7 @@
 package co.com.pragma.logging.core.masking;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -102,6 +103,27 @@ class LogMaskerTest {
         }
     }
 
+    static class Unsupported {
+        @JsonSerialize(using = ErrorThrowingSerializer.class)
+        String data = "SECRET";
+    }
+
+    static class OutOfMemory {
+        @JsonSerialize(using = ErrorThrowingSerializer.class)
+        String data = "oom";
+    }
+
+    /** Simulates a native image, where reflection on an unregistered class throws an Error. */
+    static class ErrorThrowingSerializer extends ValueSerializer<String> {
+        @Override
+        public void serialize(String value, JsonGenerator gen, SerializationContext ctxt) {
+            if (value.equals("oom")) {
+                throw new OutOfMemoryError("simulated");
+            }
+            throw new Error("Record components not available for record class");
+        }
+    }
+
     static class Custom {
         @MaskedLogField(type = MaskType.CUSTOM, strategy = "EMAIL")
         String email = "ana.perez@pragma.com.co";
@@ -164,6 +186,13 @@ class LogMaskerTest {
         @DisplayName("incompatible dependency versions yield a placeholder instead of breaking the app (ADR-15)")
         void linkageErrorFallsBackToPlaceholder() {
             assertThat(masker.toText(new Incompatible())).isEqualTo("<Incompatible>");
+        }
+
+        @Test
+        @DisplayName("native-image reflection errors yield a placeholder; JVM errors such as out of memory propagate")
+        void otherErrorsFallBackToPlaceholder() {
+            assertThat(masker.toText(new Unsupported())).isEqualTo("<Unsupported>");
+            assertThatThrownBy(() -> masker.toText(new OutOfMemory())).isInstanceOf(OutOfMemoryError.class);
         }
     }
 

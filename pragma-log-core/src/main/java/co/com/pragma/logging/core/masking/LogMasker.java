@@ -53,7 +53,11 @@ public final class LogMasker {
     public JsonNode toTree(Object value) {
         try {
             return mapper.valueToTree(value);
-        } catch (RuntimeException | LinkageError | StackOverflowError e) {
+        } catch (RuntimeException | Error e) {
+            if (e instanceof VirtualMachineError && !(e instanceof StackOverflowError)) {
+                throw e; // out of memory and the like: not a problem of this object
+            }
+            // Includes native images, where a class not registered for reflection throws an Error.
             return JsonNodeFactory.instance.stringNode(placeholder(value));
         }
     }

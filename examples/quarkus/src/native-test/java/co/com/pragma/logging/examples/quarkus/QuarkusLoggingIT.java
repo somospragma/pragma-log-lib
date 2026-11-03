@@ -21,6 +21,11 @@ class QuarkusLoggingIT extends QuarkusLoggingTest {
         return Path.of("build/test-logs/native.log");
     }
 
+    @Override
+    protected String expectedAddress() {
+        return "<Address>";
+    }
+
     @Test
     @DisplayName("timestamp constants and zones work in native mode (FMT-06)")
     void timestampConstant() throws Exception {

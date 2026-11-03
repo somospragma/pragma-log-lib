@@ -1,6 +1,7 @@
 package co.com.pragma.logging.quarkus.deployment;
 
 import co.com.pragma.logging.core.alert.LogAlertListener;
+import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskedLogField;
 import co.com.pragma.logging.core.masking.MaskingStrategy;
 import co.com.pragma.logging.quarkus.PragmaLogHttpFilter;
@@ -81,6 +82,7 @@ class PragmaLogProcessor {
     @BuildStep
     ReflectiveClassBuildItem maskedClasses(CombinedIndexBuildItem index) {
         Set<String> classes = new TreeSet<>();
+        classes.add(LogMasker.class.getName() + "$SelfCheck"); // serialized at startup by LogMasker.verify()
         for (AnnotationInstance annotation : index.getIndex().getAnnotations(MASKED_LOG_FIELD)) {
             AnnotationTarget target = annotation.target();
             switch (target.kind()) {
