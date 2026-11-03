@@ -173,7 +173,7 @@ No se exige `StructuredArguments.kv(...)` de logstash, para que el código del s
 - **Hallazgo clave:** `slf4j-jboss-logmanager`, el binding SLF4J de Quarkus, formatea `{}` con `toString()` y pega los key-values al mensaje **antes** de que cualquier formatter los vea. Con él, el masking de SLF4J es imposible.
 - **Decisión:**
   - **`pragma-log-quarkus` (runtime):** formatter JSON (`LogConsoleFormatBuildItem` / `LogFileFormatBuildItem`), configuración `pragma.log.*`, filtro HTTP de Vert.x y log de fin de request.
-  - **`pragma-log-quarkus-deployment`:** build steps; registra para reflexión, en nativo, las clases con `@MaskedLogField`.
+  - **`pragma-log-quarkus-deployment`:** build steps; registra para reflexión, en nativo, las clases con `@MaskedLogField` y las implementaciones de `LogAlertListener` y `MaskingStrategy`, que se configuran por nombre de clase. En nativo, el `Error` que lanza GraalVM al serializar una clase no registrada se convierte en `<ClassName>` (ADR-15).
   - **`pragma-log-quarkus-slf4j`:** binding SLF4J propio que conserva plantilla, argumentos y key-values. La extensión excluye `slf4j-jboss-logmanager` (`excluded-artifacts`). El binding es *parent-first*, como JBoss LogManager, para que el formatter vea la misma clase de record en tests y en dev mode.
 - **Dev mode y tests:** Quarkus no aplica la exclusión al classpath del JVM, así que `slf4j-jboss-logmanager` sigue visible. La extensión lo resuelve en tres capas:
   1. Fija `slf4j.provider`.

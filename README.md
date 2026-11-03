@@ -94,7 +94,10 @@ pragma.log.timestamp.zone=America/Bogota
 - Funciona con SLF4J (`log.info("{}", obj)`, `log.atInfo().addKeyValue(...)`) y con JBoss Logging (`Log.infof("%s", obj)`). La extensión reemplaza el binding SLF4J de Quarkus, que convertía los objetos a texto antes de poder enmascararlos.
 - Cada request agrega `requestId`, `http.method` y `http.path`, también en los hilos worker y en código reactivo con Mutiny. Al terminar sale el log con `http.status` y `http.durationMs`; las rutas `/q/**` no lo generan.
 - `app` y `version` salen de `quarkus.application.name` y `quarkus.application.version`.
-- Probado en JVM, jar de producción y dev mode. **Modo nativo:** las clases con `@MaskedLogField` se registran solas para reflexión; otras clases que se logueen como objeto necesitan `@RegisterForReflection` o salen como `<ClassName>`. Todavía no está verificado con una compilación nativa.
+- Probado en JVM, jar de producción, dev mode y **modo nativo** (GraalVM/Mandrel; un job de CI compila el ejemplo y le corre los tests).
+- **Modo nativo:**
+  - Las clases con `@MaskedLogField`, los `LogAlertListener` y las `MaskingStrategy` de la app se registran solas para reflexión.
+  - Otras clases que se logueen como objeto necesitan `@RegisterForReflection`; si no, salen como `<ClassName>`, sin romper el log.
 
 ## Uso rápido (Java puro + Logback)
 
@@ -267,5 +270,6 @@ Requiere JDK 17 o superior.
 ./gradlew build                        # compila y corre los tests
 ./gradlew :examples:plain-java:run     # ejecuta el ejemplo
 ./gradlew :examples:quarkus:quarkusDev # ejemplo Quarkus en dev mode
+./gradlew :examples:quarkus:testNative -Dquarkus.native.enabled=true -Dquarkus.native.container-build=true -Dquarkus.package.jar.enabled=false # ejemplo nativo (Docker con 8 GB)
 ./gradlew publishToMavenLocal          # publica en ~/.m2 para probar en otro proyecto
 ```

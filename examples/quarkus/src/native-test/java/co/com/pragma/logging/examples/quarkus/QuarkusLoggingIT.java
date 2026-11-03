@@ -4,10 +4,10 @@ import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusIntegrationTest;
-import java.nio.file.Path;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The same checks against the native executable (INT-04): masking through Jackson, the SLF4J binding, request
@@ -17,8 +17,8 @@ import org.junit.jupiter.api.Test;
 class QuarkusLoggingIT extends QuarkusLoggingTest {
 
     @Override
-    protected Path logFile() {
-        return Path.of("build/test-logs/native.log");
+    protected boolean fromApp(JsonNode json) {
+        return "native".equals(json.path("mode").asString(""));
     }
 
     @Override

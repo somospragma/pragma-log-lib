@@ -117,7 +117,8 @@ Ver [03-decisiones-arquitectura.md](03-decisiones-arquitectura.md). Aceptadas: l
      - `version`/`host`/`pid`, stacktrace acotado y resumen `error`; config inválida detiene el arranque.
      - Probado en tests `@QuarkusTest`, jar de producción y dev mode, con Quarkus 3.33 LTS y 3.40. App de ejemplo.
      - Jackson baja a 3.1.x para funcionar con `jackson-annotations` 2.21 (ADR-12).
-   - *Pendiente:* verificación en modo nativo (GraalVM); propagación con `context-keys` equivalente (en Quarkus basta con MDC).
+   - *Hecho (2026-11-03):* modo nativo verificado. El workflow `Quarkus native` compila el ejemplo con Mandrel y le corre `QuarkusLoggingIT`, los mismos checks del test JVM. Clases no registradas salen como `<ClassName>`.
+   - *Pendiente:* propagación con `context-keys` equivalente (en Quarkus basta con MDC).
 7. **E6 — SHOULDs + JMH + docs → `1.0.0`** en Maven Central.
    - *Hecho (2026-11-02), bloque 3:* texto plano con masking (FMT-01) en Logback, Spring y Quarkus, colores por nivel con nombre o hex (FMT-05), timestamp y zona horaria configurables en JSON y texto (FMT-06), formato por perfil documentado (FMT-09). Config inválida de formato detiene el arranque en Spring y Quarkus.
    - *Hecho (2026-11-02), bloque 4:* masking por patrones `CARD`/`EMAIL`/`JWT`/regex (MSK-10), truncado de textos largos (FLD-08), alerta por tamaño en bytes y hooks `LogAlertListener` con `onLargeLog`/`onMaskingError` por config, código o bean de Spring (ALR-01/02/03), en Logback, Spring y Quarkus.

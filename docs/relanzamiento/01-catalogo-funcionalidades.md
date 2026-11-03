@@ -146,7 +146,7 @@
 | INT-02 | Spring Boot starter (auto-config, sin XML obligatorio) | S | 🟡 | MUST | A: sin `AutoConfiguration.imports`; B no compila. |
 | INT-02b | Spring tradicional (sin Boot) | S | — | LATER | — |
 | INT-03 | Spring WebFlux | S | 🔴 | MUST | — |
-| INT-04 | Quarkus (SLF4J, JBoss Logging, Mutiny) | S | 🟡 A | MUST | Handler JUL con `String.format`, sin MDC, sin Jandex. Hecho en v2 (2026-10-31): extensión con binding SLF4J propio; nativo sin verificar. |
+| INT-04 | Quarkus (SLF4J, JBoss Logging, Mutiny) | S | 🟡 A | MUST | Handler JUL con `String.format`, sin MDC, sin Jandex. Hecho en v2 (2026-10-31): extensión con binding SLF4J propio. Nativo verificado (2026-11-03) con job de CI. |
 | INT-05 | Micronaut, Vert.x | S | — | LATER | Decidido (2026-10-31): fuera de v1, van en la siguiente versión. |
 | INT-06 | No imponer `logback.xml` dentro del jar | N | 🔴 A | MUST | A empaqueta `logback.xml` y pisa la config del consumidor. |
 | INT-07 | Core sin binding SLF4J (`logback-classic` no en core) | N | 🔴 A | MUST | Choca con Quarkus. |

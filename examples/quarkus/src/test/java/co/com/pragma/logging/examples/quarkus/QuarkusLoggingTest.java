@@ -21,9 +21,11 @@ import tools.jackson.databind.json.JsonMapper;
 @QuarkusTest
 class QuarkusLoggingTest {
 
-    /** The file the app writes; the native tests read their own. */
-    protected Path logFile() {
-        return Path.of("build/test-logs/app.log");
+    private static final Path LOG = Path.of("build/test-logs/app.log");
+
+    /** Whether a log line comes from the app under test; the native tests share the file. */
+    protected boolean fromApp(JsonNode json) {
+        return true;
     }
 
     @Test
@@ -47,7 +49,7 @@ class QuarkusLoggingTest {
         assertThat(line("Audit ").get("message").asString())
                 .contains("4111********1111").endsWith("(attempt 1)");
         assertThat(line("Gateway note: ").get("message").asString()).isEqualTo("Gateway note: charged card 4111********1111");
-        assertThat(Files.readString(logFile())).doesNotContain("s3cr3t").doesNotContain("4111111111111111");
+        assertThat(Files.readString(LOG)).doesNotContain("s3cr3t").doesNotContain("4111111111111111");
     }
 
     @Test
@@ -104,7 +106,7 @@ class QuarkusLoggingTest {
         JsonNode asyncLoaded = line("Async loaded 3");
         assertThat(asyncLoaded.get("requestId").asString()).isEqualTo("req-3");
         assertThat(asyncLoaded.get("thread").asString()).isNotEqualTo(line("Async lookup 3").get("thread").asString());
-        assertThat(Files.readString(logFile())).doesNotContain("abc.def");
+        assertThat(Files.readString(LOG)).doesNotContain("abc.def");
     }
 
     @Test
@@ -152,15 +154,16 @@ class QuarkusLoggingTest {
     }
 
     private List<JsonNode> lines() throws IOException {
-        return Files.readAllLines(logFile()).stream()
+        return Files.readAllLines(LOG).stream()
                 .filter(line -> line.startsWith("{"))
                 .map(line -> JsonMapper.shared().readTree(line))
+                .filter(this::fromApp)
                 .toList();
     }
 
     private String content() {
         try {
-            return Files.readString(logFile());
+            return Files.readString(LOG);
         } catch (IOException e) {
             return e.toString();
         }
