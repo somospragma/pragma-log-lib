@@ -42,7 +42,11 @@ jobs:
       # Output of the native executable started by the tests: startup errors are only there.
       - name: Show native app output
         if: failure()
-        run: find examples/quarkus -name '*.log' -not -path '*/test-results/*' -exec sh -c 'echo "== $1"; tail -200 "$1"' _ {} \;
+        working-directory: examples/quarkus
+        run: |
+          find . -name '*.log' -not -path '*/test-results/*' -exec sh -c 'echo "== $1"; tail -200 "$1"' _ {} \;
+          echo "== native executable started by hand"
+          timeout 10 ./build/*-runner -Dquarkus.profile=it 2>&1 | tail -100 || true
 
       - name: Upload test reports and logs
         if: failure()
