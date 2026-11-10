@@ -22,8 +22,8 @@
 |---|---|---|---|---|---|
 | FMT-01 | Formato CONSOLE legible (`timestamp level [thread] logger : msg`) | S | ✅ A/B | MUST | Hoy sale `ts [LEVEL] msg k=v`, no el layout de la spec. **Hecho en v2 (2026-11-02):** `format: plain` con el layout de la spec y el mismo masking que el JSON, en Logback (`PragmaTextEncoder`), Spring y Quarkus. |
 | FMT-02 | JSON compacto, una línea por evento | S | 🟡 A/B | MUST | A convierte todos los valores a String (pierde tipos); B no formatea timestamp. |
-| FMT-03 | JSON pretty (`prettyPrint`) | S | ✅ | LATER | Rompe los log shippers (multilínea); solo útil en local. |
-| FMT-04 | Formatos custom (XML, CSV…) vía `LogFormatter` | S | 🟡 | LATER | Clase abstracta existe; no hay registro por config. |
+| FMT-03 | JSON pretty (`prettyPrint`) | S | ✅ | MUST | Rompe los log shippers (multilínea); solo útil en local. **v1 (2026-11-09):** entra por decisión de producto. |
+| FMT-04 | Formatos custom (XML, CSV…) vía `LogFormatter` | S | 🟡 | MUST | Clase abstracta existe; no hay registro por config. **v1 (2026-11-09):** entra por decisión de producto. |
 | FMT-05 | Colores ANSI por nivel (nombre o hex) | S | 🟡 | SHOULD | Solo nombres `AnsiColor`, hex no soportado; colorea la línea completa. **Hecho en v2 (2026-11-02):** color solo en el nivel (configurable por nombre o hex), timestamp tenue y logger en cian; `auto` respeta terminal y `NO_COLOR`; los archivos nunca llevan color. |
 | FMT-06 | Formato de timestamp configurable (default ISO-8601 en JSON) | S | 🟡 | MUST | Zona horaria no configurable; default actual no es ISO. **Hecho en v2 (2026-11-02):** `timestamp.pattern` (patrón o constante `[ISO_INSTANT]`) y `timestamp.zone` en JSON y texto; default ISO-8601 con offset en JSON. |
 | FMT-07 | Seleccionar formato solo por config, sin tocar XML | S | 🟡 A | MUST | En A funciona leyendo `formatter`. |
@@ -37,15 +37,15 @@
 | FLD-01 | Campos estándar: timestamp, level, thread, logger/className, appName, message, stacktrace | S | 🟡 | MUST | `appName` y `className` nunca se inyectan (los encoders usan `logger`). |
 | FLD-02 | Ocultar campos (`hideFields`) | S | ✅ A / 🟡 B | MUST | B no deja ocultar timestamp/level/message. |
 | FLD-03 | Renombrar campos (`renameFields`) | S | ✅ | MUST | Clave para mapear a esquemas de ELK/Datadog. |
-| FLD-04 | Ordenar campos (`fieldsOrder`) | S | ✅ | LATER | Poco valor en JSON; útil en CONSOLE. |
+| FLD-04 | Ordenar campos (`fieldsOrder`) | S | ✅ | MUST | Poco valor en JSON; útil en CONSOLE. **v1 (2026-11-09):** entra por decisión de producto. |
 | FLD-05 | Campos adicionales (`additionalFields`) con source `fixed` | S | 🟡 | SHOULD | Valores fijos: env, team, version. |
-| FLD-05b | `additionalFields` con `path` JSONPath (`$.request.error`) para anidar | S | 🟡 B | LATER | Solo B en JsonFormatter. |
-| FLD-06 | Objeto `extra` para campos no mapeados | S | — | DROP | Mejor campos en raíz o bajo un prefijo fijo. |
-| FLD-07 | Campos obligatorios (`requiredFields`) con validación | S | ✅ | LATER | Hoy lanza excepción: en PragmaLogger llega a la app. Nunca debe romper. |
+| FLD-05b | `additionalFields` con `path` JSONPath (`$.request.error`) para anidar | S | 🟡 B | MUST | Solo B en JsonFormatter. **v1 (2026-11-09):** entra por decisión de producto. |
+| FLD-06 | Objeto `extra` para campos no mapeados | S | — | MUST | Mejor campos en raíz o bajo un prefijo fijo. **v1 (2026-11-09):** entra por decisión de producto. |
+| FLD-07 | Campos obligatorios (`requiredFields`) con validación | S | ✅ | MUST | Hoy lanza excepción: en PragmaLogger llega a la app. Nunca debe romper. **v1 (2026-11-09):** entra por decisión de producto. |
 | FLD-08 | Truncar textos largos (`maxSizeText`) | S | ✅ | SHOULD | A convierte objetos a String al truncar; truncar solo Strings. **Hecho en v2 (2026-11-02):** `max-field-length` trunca el mensaje y los valores de texto (también dentro de objetos) después de enmascarar; números y stack trace no. |
 | FLD-09 | Incluir MDC automáticamente | S | ✅ A | MUST | En los encoders de A. |
 | FLD-10 | Argumentos estructurados (`log.info("msg", Map)`, `kv(...)`, objetos en `{}`) como campos | S | 🟡 A | MUST | A los agrega como `arg0..N`; el mensaje con `{}` usa `toString()` sin masking. |
-| FLD-11 | Nunca mensaje vacío | S | — | SHOULD | — |
+| FLD-11 | Nunca mensaje vacío | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. |
 | FLD-12 | Versión de la app, host, pid, entorno | N | — | SHOULD | Campos típicos de observabilidad. Hecho en v2 (2026-10-31): `version`, `host` (default), `pid` (opt-in). |
 
 ### 1.3 Excepciones (ERR)
@@ -62,7 +62,7 @@
 | ID | Funcionalidad | Origen | Estado actual | v1 | Notas |
 |---|---|---|---|---|---|
 | MSK-01 | `@MaskedLogField(type, length, strategy)` en campos | S | 🟡 | MUST | A: solo String, en otros tipos fuga vía `toString()`. B: ignora no-String. Ninguna lee campos heredados. |
-| MSK-01b | `@MaskedLogField` a nivel de clase | S | 🟡 A | LATER | A enmascara el `toString()` entero; B lo ignora. |
+| MSK-01b | `@MaskedLogField` a nivel de clase | S | 🟡 A | MUST | A enmascara el `toString()` entero; B lo ignora. **v1 (2026-11-09):** entra por decisión de producto. |
 | MSK-02 | Config global: `enabled`, `character`, `defaultType`, `defaultLength` | S | 🟡 | MUST | `defaultType` es config muerta; null en `character`/`defaultLength` causa NPE. |
 | MSK-03 | Estrategias built-in: PREFIX, SUFFIX, MIDDLE, FULL, HIDDEN | S | ✅ | MUST | MIDDLE acorta la cadena; HIDDEN difiere entre A (`""`) y B (`null`). |
 | MSK-04 | Estrategias custom registradas por nombre (`masking.strategies`) | S | ✅ | SHOULD | En A, las built-in pisan a las del usuario; usar TCCL en vez de `Class.forName`. |
@@ -96,13 +96,13 @@
 | CTX-07 | Limpieza obligatoria del contexto al final del request (sin memory leaks) | S | 🟡 | MUST | — |
 | CTX-08 | Variables propias del contexto en los logs: claves declaradas en config (`pragma.log.context-keys`) que viajan en el Reactor Context y salen como campos | N | — | MUST | Pedido en el relanzamiento (2026-10-31). En MVC basta con MDC. |
 | ENR-01 | Contexto HTTP: método, path, status, duración | S | 🟡 B | SHOULD | B captura antes de ejecutar el método (status inválido). Hecho en v2 (2026-10-31): log de fin de request con status y duración. |
-| ENR-02 | `additionalFields` desde `header` / `query` | S | 🟡 A | SHOULD | A vía MDC en el interceptor. |
-| ENR-03 | Captura de headers con whitelist/blacklist | S | 🟡 B | SHOULD | Por defecto: whitelist vacía. |
-| ENR-04 | Captura de request/response body (opt-in) | S | ⚪ B | LATER | Coste y riesgo de datos sensibles altos. |
-| ENR-05 | `@LogEnrichment` por clase/método vía AOP | S | 🔴 B | DROP | (ADR-10) Un filtro global configurable es más simple que AOP por anotación. |
-| ENR-06 | Usuario autenticado desde Spring Security | S | — | LATER | — |
-| ENR-07 | Enrichers custom (`LogEnricher`) registrables | S | ⚪ | LATER | Interfaz existe, sin conectar al pipeline. |
-| ENR-08 | Log de acceso por request (entrada/salida) | N | — | LATER | Útil y frecuente; evaluar. |
+| ENR-02 | `additionalFields` desde `header` / `query` | S | 🟡 A | MUST | A vía MDC en el interceptor. **v1 (2026-11-09):** entra por decisión de producto. |
+| ENR-03 | Captura de headers con whitelist/blacklist | S | 🟡 B | MUST | Por defecto: whitelist vacía. **v1 (2026-11-09):** entra por decisión de producto. |
+| ENR-04 | Captura de request/response body (opt-in) | S | ⚪ B | MUST | Coste y riesgo de datos sensibles altos. **v1 (2026-11-09):** entra por decisión de producto. |
+| ENR-05 | `@LogEnrichment` por clase/método vía AOP | S | 🔴 B | MUST | (ADR-10) Un filtro global configurable es más simple que AOP por anotación. **v1 (2026-11-09):** entra por decisión de producto. |
+| ENR-06 | Usuario autenticado desde Spring Security | S | — | DROP | — **Fuera (2026-11-09):** decisión de producto. |
+| ENR-07 | Enrichers custom (`LogEnricher`) registrables | S | ⚪ | MUST | Interfaz existe, sin conectar al pipeline. **v1 (2026-11-09):** entra por decisión de producto. |
+| ENR-08 | Log de acceso por request (entrada/salida) | N | — | MUST | Útil y frecuente; evaluar. **v1 (2026-11-09):** entra por decisión de producto. |
 
 ### 1.7 Alertas y hooks (ALR)
 
@@ -111,7 +111,7 @@
 | ALR-01 | Umbral de tamaño de log (`maxLogSize`) con alerta en consola | S | 🟡 | SHOULD | Solo funciona si hay `hooks` configurados; mide chars, no bytes. **Hecho en v2 (2026-11-02):** `alerts.max-log-size` en bytes UTF-8; aviso en stderr limitado a uno por minuto por logger, sin listeners configurados. |
 | ALR-02 | Hooks `LogAlertListener` registrables por config o código | S | 🟡 | SHOULD | Por código no funciona si `hooks` está vacío. **Hecho en v2 (2026-11-02):** por config (`alerts.listeners`), por código (`LogAlerts.register`) y como bean de Spring; un listener que falla o que loguea no rompe ni genera alertas en bucle. |
 | ALR-03 | Hook `onMaskingError` | S | ⚪ | SHOULD | Nunca se dispara. **Hecho en v2 (2026-11-02):** se dispara en cada fallback de masking o encoding (cubre también ALR-05). |
-| ALR-04 | Truncar el log si supera el umbral (opcional) | S | — | LATER | — |
+| ALR-04 | Truncar el log si supera el umbral (opcional) | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. |
 | ALR-05 | Hook de error interno de la librería (fallback) | N | — | MUST | Ligado a NFR-05: la librería nunca rompe ni pierde logs. |
 
 ### 1.8 Configuración (CFG)
@@ -123,10 +123,10 @@
 | CFG-03 | Merge profundo base + usuario | S | 🟡 | MUST | Booleanos omitidos quedan en `false`; listas reemplazan. |
 | CFG-04 | Config desde `application.yml` en Spring (`pragma.log.*`) | S | — | MUST | La spec lo pide; el código no lo hace. |
 | CFG-05 | Validación con errores claros | S | 🔴 | MUST | Hoy un error de YAML cae **en silencio** a la config base. |
-| CFG-06 | Hot-reload de configuración | S | — | LATER | — |
+| CFG-06 | Hot-reload de configuración | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. |
 | CFG-07 | Config en Quarkus (`application.properties`) | S | — | MUST | — Hecho en v2 (2026-10-31): `pragma.log.*` en `application.properties`. |
 | CFG-08 | Override por variables de entorno / system properties | N | 🟡 | SHOULD | Solo existe `pragma.log.forceColors`. |
-| CFG-09 | Advertir inconsistencias (p. ej. `multiThread: true` sin AsyncAppender) | S | — | LATER | — |
+| CFG-09 | Advertir inconsistencias (p. ej. `multiThread: true` sin AsyncAppender) | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. |
 
 ### 1.9 Rendimiento (PERF)
 
@@ -142,12 +142,12 @@
 | ID | Funcionalidad | Origen | Estado actual | v1 | Notas |
 |---|---|---|---|---|---|
 | INT-01 | Java puro (SLF4J + Logback encoder) | S | ✅ A | MUST | `PragmaLogbackEncoder`. |
-| INT-01b | API propia `PragmaLogger` | C | 🟡 A | DROP | Formatea dos veces y propaga excepciones; SLF4J basta. |
+| INT-01b | API propia `PragmaLogger` | C | 🟡 A | MUST | Formatea dos veces y propaga excepciones; SLF4J basta. **v1 (2026-11-09):** entra por decisión de producto. |
 | INT-02 | Spring Boot starter (auto-config, sin XML obligatorio) | S | 🟡 | MUST | A: sin `AutoConfiguration.imports`; B no compila. |
-| INT-02b | Spring tradicional (sin Boot) | S | — | LATER | — |
+| INT-02b | Spring tradicional (sin Boot) | S | — | DROP | — **Fuera (2026-11-09):** decisión de producto. |
 | INT-03 | Spring WebFlux | S | 🔴 | MUST | — |
 | INT-04 | Quarkus (SLF4J, JBoss Logging, Mutiny) | S | 🟡 A | MUST | Handler JUL con `String.format`, sin MDC, sin Jandex. Hecho en v2 (2026-10-31): extensión con binding SLF4J propio. Nativo verificado (2026-11-03) con job de CI. |
-| INT-05 | Micronaut, Vert.x | S | — | LATER | Decidido (2026-10-31): fuera de v1, van en la siguiente versión. |
+| INT-05 | Micronaut, Vert.x | S | — | DROP | Decidido (2026-10-31): fuera de v1, van en la siguiente versión. **Fuera (2026-11-09):** decisión de producto. |
 | INT-06 | No imponer `logback.xml` dentro del jar | N | 🔴 A | MUST | A empaqueta `logback.xml` y pisa la config del consumidor. |
 | INT-07 | Core sin binding SLF4J (`logback-classic` no en core) | N | 🔴 A | MUST | Choca con Quarkus. |
 
@@ -155,14 +155,14 @@
 
 | ID | Funcionalidad | Origen | Estado actual | v1 | Notas |
 |---|---|---|---|---|---|
-| OBS-01 | Mapeo de campos a OTel / ELK / Datadog documentado | S | — | SHOULD | — |
+| OBS-01 | Mapeo de campos a OTel / ELK / Datadog documentado | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. |
 | OBS-02 | Validación real contra un stack (p. ej. ELK en docker) | S | — | LATER | — |
 | DOC-01 | Manual de usuario y guía de contribución | S | 🟡 | MUST | Desactualizados respecto al código. |
 | DOC-02 | Ejemplos por framework (proyectos de prueba) | S | 🟡 A | MUST | Los demos actuales no prueban lo que dicen (password en claro). |
 | DOC-03 | Sitio Docusaurus / GitHub Pages | S | — | LATER | — |
 | PUB-01 | Publicar en repo Maven | S | ⚪ | MUST | `maven-publish` aplicado, sin repo destino. |
-| PUB-02 | CI con build, tests y cobertura | N | — | MUST | — |
-| PUB-03 | Versionado semántico y changelog | N | — | SHOULD | — |
+| PUB-02 | CI con build, tests y cobertura | N | — | MUST | — Hecho en v2 (2026-11-09): `pipeline.yml` con Quality (Error Prone, Java 17, tests + cobertura mínima, PMD, nativo), Security (OSV-Scanner, gitleaks, SpotBugs + FindSecBugs), Build y publicación con aprobación. |
+| PUB-03 | Versionado semántico y changelog | N | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. |
 | PUB-04 | BOM / version catalog de dependencias | N | 🔴 | MUST | Hoy: Spring 3.3.1 vs 6.1.3/3.2.1, Jackson 2.17 vs 2.15, JUnit 5.10 vs 5.8, Mockito `4.+`. |
 
 ---
