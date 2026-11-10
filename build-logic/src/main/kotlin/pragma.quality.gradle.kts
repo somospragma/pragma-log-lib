@@ -1,5 +1,6 @@
 // Static analysis of the published modules, run by the Quality and Security stages of the pipeline.
-// - Error Prone: bug patterns at compile time (lint). Needs JDK 21+ to run, so builds on JDK 17 skip it.
+// - Error Prone: bug patterns at compile time (lint). Needs JDK 21+ to run; on JDK 17 it is not applied
+//   (the plugin would skip compilation altogether).
 // - PMD: unused code (dead code).
 // - SpotBugs + FindSecBugs: bugs and security issues in the bytecode (SAST).
 import com.github.spotbugs.snom.Confidence
@@ -10,22 +11,25 @@ plugins {
     java
     jacoco
     pmd
-    id("net.ltgt.errorprone")
     id("com.github.spotbugs")
 }
 
 val libs = versionCatalogs.named("libs")
 
 dependencies {
-    "errorprone"(libs.findLibrary("errorprone-core").get())
     "spotbugsPlugins"(libs.findLibrary("findsecbugs").get())
 }
 
-tasks.withType<JavaCompile>().configureEach {
-    options.errorprone {
-        isEnabled = JavaVersion.current() >= JavaVersion.VERSION_21
-        disableWarningsInGeneratedCode = true
-        excludedPaths = ".*/build/generated/.*"
+if (JavaVersion.current() >= JavaVersion.VERSION_21) {
+    apply(plugin = "net.ltgt.errorprone")
+    dependencies {
+        "errorprone"(libs.findLibrary("errorprone-core").get())
+    }
+    tasks.withType<JavaCompile>().configureEach {
+        options.errorprone {
+            disableWarningsInGeneratedCode = true
+            excludedPaths = ".*/build/generated/.*"
+        }
     }
 }
 

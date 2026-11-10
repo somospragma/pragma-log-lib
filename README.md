@@ -264,12 +264,37 @@ En Java puro, usa `PragmaTextEncoder` en `logback.xml`. Acepta las mismas propie
 
 ## Desarrollo
 
-Requiere JDK 17 o superior.
+Requiere JDK 17 o superior (JDK 21+ para correr Error Prone).
 
 ```bash
-./gradlew build                        # compila y corre los tests
+./gradlew build                        # compila, analiza y corre los tests (lo mismo que la etapa Quality)
 ./gradlew :examples:plain-java:run     # ejecuta el ejemplo
 ./gradlew :examples:quarkus:quarkusDev # ejemplo Quarkus en dev mode
 ./gradlew :examples:quarkus:testNative -Dquarkus.native.enabled=true -Dquarkus.native.container-build=true -Dquarkus.package.jar.enabled=false # ejemplo nativo (Docker con 8 GB)
 ./gradlew publishToMavenLocal          # publica en ~/.m2 para probar en otro proyecto
 ```
+
+### Pipeline
+
+`.github/workflows/pipeline.yml` corre en cada push y PR. Cada etapa empieza cuando la anterior pasa:
+
+| Etapa | Jobs | Local |
+|---|---|---|
+| **Quality** | Lint con Error Prone (JDK 21, advertencias como error) · Compilación en Java 17 · Tests en Java 17 y 21 con cobertura mínima por módulo (75%; 50% en `pragma-log-quarkus`, que se prueba sobre todo con la app de ejemplo) · Código muerto con PMD · Tests en modo nativo de Quarkus | `./gradlew build boot3Test` |
+| **Security** | Dependencias con OSV-Scanner (lo que cada módulo publica) · Secretos con gitleaks (todo el historial) · SAST con SpotBugs + FindSecBugs | ver abajo |
+| **Build** | Jars, sources, javadoc y POMs de los 7 módulos, como artefacto `maven-artifacts` | `./gradlew publishToMavenLocal -Dmaven.repo.local=$PWD/build/m2` |
+| **Approval + Publish** | Solo con tags `v*`: el environment `maven-central` pide aprobación y luego publica en Maven Central | — |
+
+Security en local (con Docker):
+
+```bash
+./gradlew resolveShippedDependencies --write-locks --no-configuration-cache
+docker run --rm -v "$PWD":/src -w /src ghcr.io/google/osv-scanner:v2.3.0 scan source -L pragma-log-core/gradle.lockfile  # un -L por módulo
+docker run --rm -v "$PWD":/repo ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --redact
+./gradlew spotbugsMain
+```
+
+- Las excepciones aceptadas están en `config/spotbugs/exclude.xml` y `.gitleaksignore`, cada una con su motivo.
+- Las reglas de código muerto están en `config/pmd/dead-code.xml`.
+- Las actions y las imágenes Docker del pipeline están fijadas por digest.
+
