@@ -47,6 +47,8 @@ public final class PatternMasker {
     }
 
     /**
+     * Returns a masker of the given patterns: {@code CARD}, {@code EMAIL}, {@code JWT} or regular expressions.
+     *
      * @throws IllegalArgumentException when a regex is invalid
      */
     public static PatternMasker of(List<String> patterns, char maskChar) {
@@ -124,7 +126,8 @@ public final class PatternMasker {
         }
         StringBuilder out = new StringBuilder(card.length());
         int index = 0;
-        for (char c : card.toCharArray()) {
+        for (int i = 0; i < card.length(); i++) {
+            char c = card.charAt(i);
             if (Character.isDigit(c)) {
                 out.append(index < 4 || index >= digits.length() - 4 ? c : maskChar);
                 index++;

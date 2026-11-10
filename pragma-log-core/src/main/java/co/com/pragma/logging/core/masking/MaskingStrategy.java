@@ -11,6 +11,8 @@ package co.com.pragma.logging.core.masking;
 public interface MaskingStrategy {
 
     /**
+     * Returns the masked text.
+     *
      * @param value    non-null text to mask
      * @param maskChar configured mask character
      * @param length   length from the annotation, or the configured default

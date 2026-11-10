@@ -60,7 +60,7 @@ final class EventMasker {
     }
 
     private Map<String, String> maskMdc(Map<String, String> mdc) {
-        if (mdc == null || mdc.isEmpty() || sanitizer.isEmpty() && !hasSensitiveKey(mdc)) {
+        if (mdc == null || mdc.isEmpty() || (sanitizer.isEmpty() && !hasSensitiveKey(mdc))) {
             return mdc;
         }
         Map<String, String> masked = new LinkedHashMap<>(mdc.size());

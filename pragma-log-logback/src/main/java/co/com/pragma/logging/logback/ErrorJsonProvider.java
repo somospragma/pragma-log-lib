@@ -14,6 +14,7 @@ import tools.jackson.core.JsonGenerator;
  * <pre>{@code "error":{"type":"java.lang.IllegalStateException","message":"Gateway timeout",
  *          "rootCause":"java.net.SocketTimeoutException: Read timed out"}}</pre>
  */
+@SuppressWarnings("ReferenceEquality") // exceptions in a cause chain are compared by identity
 final class ErrorJsonProvider extends AbstractFieldJsonProvider<ILoggingEvent> {
 
     private final TextSanitizer sanitizer;

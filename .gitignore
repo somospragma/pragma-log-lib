@@ -13,3 +13,7 @@ out/
 bin/
 
 .DS_Store
+
+# Written in CI for the dependency scan
+gradle.lockfile
+settings-gradle.lockfile

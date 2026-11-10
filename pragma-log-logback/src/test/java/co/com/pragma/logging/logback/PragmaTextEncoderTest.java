@@ -83,7 +83,7 @@ class PragmaTextEncoderTest {
         event.setThreadName("main");
         event.setMDCPropertyMap(Map.of());
 
-        String[] lines = encode(event).split("\\R");
+        String[] lines = encode(event).lines().toArray(String[]::new);
 
         assertThat(lines[0]).isEqualTo("2026-11-02 15:04:05.123 ERROR [main] co.com.pragma.Sample : Payment failed");
         assertThat(lines[1]).isEqualTo("java.lang.IllegalStateException: gateway down");

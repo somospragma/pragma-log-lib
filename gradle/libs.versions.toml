@@ -11,7 +11,14 @@ spring-boot = "4.1.2"
 spring-boot3 = "3.5.16"
 context-propagation = "1.2.1"
 # Minimum supported: 3.33 LTS, the first one that ships jackson-annotations 2.21 (required by Jackson 3.1).
-quarkus = "3.33.4"
+quarkus = "3.33.4.2"
+# Quality and security tools (build-logic/pragma.quality)
+errorprone = "2.52.0"
+errorprone-plugin = "5.2.0"
+pmd = "7.29.0"
+spotbugs = "4.10.5"
+spotbugs-plugin = "6.5.13"
+findsecbugs = "1.14.0"
 
 [libraries]
 quarkus-bom = { module = "io.quarkus:quarkus-bom", version.ref = "quarkus" }
@@ -53,6 +60,10 @@ jmh-generator = { module = "org.openjdk.jmh:jmh-generator-annprocess", version.r
 
 # Used by build-logic convention plugins
 maven-publish-plugin = { module = "com.vanniktech:gradle-maven-publish-plugin", version.ref = "maven-publish" }
+errorprone-plugin = { module = "net.ltgt.gradle:gradle-errorprone-plugin", version.ref = "errorprone-plugin" }
+spotbugs-plugin = { module = "com.github.spotbugs.snom:spotbugs-gradle-plugin", version.ref = "spotbugs-plugin" }
+errorprone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "errorprone" }
+findsecbugs = { module = "com.h3xstream.findsecbugs:findsecbugs-plugin", version.ref = "findsecbugs" }
 
 [plugins]
 quarkus = { id = "io.quarkus", version.ref = "quarkus" }

@@ -2,6 +2,7 @@
 plugins {
     `java-library`
     jacoco
+    id("pragma.quality")
 }
 
 // Sources and javadoc jars are added by the publishing plugin (pragma.publishing).

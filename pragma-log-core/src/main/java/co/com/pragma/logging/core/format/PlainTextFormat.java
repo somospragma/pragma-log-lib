@@ -62,6 +62,8 @@ public final class PlainTextFormat {
     }
 
     /**
+     * Returns the text line of an event, ending with a line separator.
+     *
      * @param fields     MDC and key-value fields, already masked; values are written with {@code toString()}
      * @param stacktrace stack trace text, or {@code null}
      * @return the line, ending with a line separator

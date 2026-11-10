@@ -4,6 +4,9 @@ plugins {
     alias(libs.plugins.quarkus.extension)
 }
 
+// Most of this module runs only inside a Quarkus app: examples/quarkus tests it in JVM and native mode.
+extra["minLineCoverage"] = "0.50"
+
 description = "Quarkus extension of pragma-log: JSON logs, masking and HTTP context on JBoss LogManager."
 
 quarkusExtension {

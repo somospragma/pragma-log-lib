@@ -23,3 +23,8 @@ tasks.withType<JavaCompile>().configureEach {
 tasks.test {
     notCompatibleWithConfigurationCache("configured by the Quarkus extension plugin")
 }
+
+// Build steps are package-private; Maven Central still requires a javadoc jar with content.
+tasks.withType<Javadoc>().configureEach {
+    (options as StandardJavadocDocletOptions).addBooleanOption("package", true)
+}

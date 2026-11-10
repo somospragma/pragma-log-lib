@@ -20,9 +20,10 @@ public enum ColorMode {
         };
     }
 
+    @SuppressWarnings("SystemConsoleNull") // null up to Java 21; isTerminal() below covers 22+
     private static boolean isTerminal() {
         String noColor = System.getenv("NO_COLOR");
-        if (noColor != null && !noColor.isEmpty() || "dumb".equals(System.getenv("TERM"))) {
+        if ((noColor != null && !noColor.isEmpty()) || "dumb".equals(System.getenv("TERM"))) {
             return false;
         }
         Console console = System.console();

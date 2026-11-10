@@ -2,7 +2,6 @@ package co.com.pragma.logging.core.masking;
 
 import java.util.IdentityHashMap;
 import java.util.Iterator;
-import java.util.Map;
 import tools.jackson.core.JsonGenerator;
 import tools.jackson.databind.BeanProperty;
 import tools.jackson.databind.SerializationContext;
@@ -68,6 +67,7 @@ final class CycleGuardSerializer extends ValueSerializer<Object> {
     }
 
     @Override
+    @SuppressWarnings("ReferenceEquality") // same serializer instance: nothing to wrap again
     public ValueSerializer<?> createContextual(SerializationContext ctxt, BeanProperty property) {
         ValueSerializer<?> contextual = delegate.createContextual(ctxt, property);
         return contextual == delegate ? this : wrap(contextual, maxDepth);
@@ -114,7 +114,7 @@ final class CycleGuardSerializer extends ValueSerializer<Object> {
 
     /** Objects currently being written in this serialization call. */
     private static final class Visits {
-        private final Map<Object, Boolean> inProgress = new IdentityHashMap<>();
+        private final IdentityHashMap<Object, Boolean> inProgress = new IdentityHashMap<>();
 
         boolean enter(Object value, JsonGenerator gen, int maxDepth) {
             if (inProgress.containsKey(value)) {

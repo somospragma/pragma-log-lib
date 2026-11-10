@@ -114,6 +114,7 @@ public final class PragmaJsonFormatter extends ExtFormatter {
         return out.append('\n').toString();
     }
 
+    @SuppressWarnings("ReferenceEquality") // the root cause is the same exception when it has no cause
     private void writeError(JsonGenerator json, Throwable thrown) {
         String name = nameOf(StandardFields.ERROR);
         if (name == null) {

@@ -68,7 +68,7 @@ class PragmaTextFormatterTest {
         record.setParameters(new Object[] {card});
         record.setThrown(new IllegalStateException("gateway down"));
 
-        String[] lines = formatter(true, Set.of()).format(record).split("\\R");
+        String[] lines = formatter(true, Set.of()).format(record).lines().toArray(String[]::new);
 
         assertThat(lines[0]).isEqualTo("\u001b[2m15:04:05\u001b[0m \u001b[31mERROR\u001b[0m [worker-1] "
                 + "\u001b[36mco.com.pragma.Sample\u001b[0m : Charge {\"holder\":\"Ana\",\"number\":\"4111********1111\"}"

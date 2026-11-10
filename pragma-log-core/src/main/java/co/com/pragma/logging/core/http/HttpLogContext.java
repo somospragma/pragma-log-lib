@@ -33,6 +33,8 @@ public final class HttpLogContext {
     }
 
     /**
+     * Returns the context entries of a request, {@link #REQUEST_ID} first.
+     *
      * @param requestIdHeader header that carries the request id
      * @param headers         allow-listed headers copied to the context
      * @param method          request method

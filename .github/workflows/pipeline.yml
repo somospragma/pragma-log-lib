@@ -1,0 +1,224 @@
+name: Pipeline
+
+# Quality (CI) → Security (CI) → Build → Approval + Publish (CD, only for v* tags).
+# Actions and images are pinned by digest: a moved tag cannot inject code into the pipeline.
+on:
+  push:
+    branches: [main, v2]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  OSV_SCANNER_IMAGE: ghcr.io/google/osv-scanner@sha256:6421cdd773a54fad5fd991895b4f3840beba55a2f30a8182185919e13979a2c8 # v2.3.0
+  GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f # v8.30.1
+
+jobs:
+  # ---------------------------------------------------------------- Quality (CI)
+  lint:
+    name: Lint (Error Prone)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      # Error Prone runs on JDK 21+; -Werror turns its warnings into failures.
+      - run: ./gradlew compileJava compileTestJava
+
+  typecheck:
+    name: Compile (Java 17 baseline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - run: ./gradlew compileJava compileTestJava
+
+  test:
+    name: Test + coverage (Java ${{ matrix.java }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['17', '21']
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      # Unit and integration tests, Spring Boot 4 and 3.5, the examples and the minimum coverage per module.
+      - run: ./gradlew test boot3Test jacocoTestCoverageVerification :examples:plain-java:run
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-reports-java-${{ matrix.java }}
+          path: |
+            **/build/reports/tests/
+            **/build/reports/jacoco/
+
+  dead-code:
+    name: Dead code (PMD)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - run: ./gradlew pmdMain
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pmd-report
+          path: '**/build/reports/pmd/'
+
+  native:
+    name: Native tests (Quarkus)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      # The native executable is built inside the Mandrel builder container and QuarkusLoggingIT runs against it.
+      - run: >
+          ./gradlew :examples:quarkus:testNative
+          -Dquarkus.native.enabled=true
+          -Dquarkus.native.container-build=true
+          -Dquarkus.package.jar.enabled=false
+      - name: Show native app output
+        if: failure()
+        working-directory: examples/quarkus
+        run: |
+          find . -name '*.log' -not -path '*/test-results/*' -exec sh -c 'echo "== $1"; tail -200 "$1"' _ {} \;
+          echo "== native executable started by hand"
+          timeout 10 ./build/*-runner -Dquarkus.profile=it 2>&1 | tail -100 || true
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-test-reports
+          path: |
+            examples/quarkus/build/reports/tests/
+            examples/quarkus/**/*.log
+
+  # ---------------------------------------------------------------- Security (CI)
+  dependency-audit:
+    name: Dependency audit (OSV-Scanner)
+    needs: [lint, typecheck, test, dead-code, native]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      # Records what each published module ships (compile and runtime classpaths) in gradle.lockfile.
+      - run: ./gradlew resolveShippedDependencies --write-locks --no-configuration-cache
+      - name: Scan dependencies
+        run: |
+          args=()
+          for lockfile in $(find . -name gradle.lockfile -not -path './build-logic/*'); do
+            args+=(-L "$lockfile")
+          done
+          docker run --rm -v "$PWD":/src -w /src "$OSV_SCANNER_IMAGE" scan source "${args[@]}"
+
+  secret-scan:
+    name: Secret scan (gitleaks)
+    needs: [lint, typecheck, test, dead-code, native]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # Whole history; .gitleaksignore lists reviewed fake values by fingerprint.
+      - run: docker run --rm -v "$PWD":/repo "$GITLEAKS_IMAGE" git /repo --redact --verbose
+
+  sast:
+    name: SAST (SpotBugs + FindSecBugs)
+    needs: [lint, typecheck, test, dead-code, native]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - run: ./gradlew spotbugsMain
+      - name: Upload report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: spotbugs-report
+          path: '**/build/reports/spotbugs/'
+
+  # ---------------------------------------------------------------- Build
+  build:
+    name: Build artifacts
+    needs: [dependency-audit, secret-scan, sast]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - name: Version
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "args=-Pversion=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"; fi
+      # Jars, sources, javadoc and POMs of every published module, in a local Maven layout.
+      - run: ./gradlew publishToMavenLocal -Dmaven.repo.local="$PWD/build/m2" ${{ steps.version.outputs.args }}
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: maven-artifacts
+          path: build/m2/co/
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------- Approval + Publish (CD)
+  publish:
+    name: Publish to Maven Central
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    # Approval: the maven-central environment requires a reviewer before this job starts.
+    environment: maven-central
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-read-only: true
+      - run: ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache -Pversion="${GITHUB_REF_NAME#v}"
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_KEY_PASSWORD }}

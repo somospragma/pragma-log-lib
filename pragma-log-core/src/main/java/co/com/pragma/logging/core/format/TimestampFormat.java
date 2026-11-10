@@ -40,6 +40,8 @@ public final class TimestampFormat {
     }
 
     /**
+     * Returns the formatter of a pattern in a zone.
+     *
      * @param pattern pattern or {@code [CONSTANT]}
      * @param zone    zone id such as {@code UTC} or {@code America/Bogota}; {@code null} or blank for the
      *                system zone
@@ -49,7 +51,11 @@ public final class TimestampFormat {
         return formatter(pattern).withZone(zone(zone));
     }
 
-    /** @throws IllegalArgumentException when the zone is invalid */
+    /**
+     * Returns the zone with that id, or the system zone when it is blank.
+     *
+     * @throws IllegalArgumentException when the zone is invalid
+     */
     public static ZoneId zone(String zone) {
         if (zone == null || zone.isBlank()) {
             return ZoneId.systemDefault();
