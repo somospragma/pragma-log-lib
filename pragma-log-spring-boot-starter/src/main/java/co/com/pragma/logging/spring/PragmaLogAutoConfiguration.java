@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.Ordered;
+import org.springframework.core.env.Environment;
 import org.springframework.core.annotation.Order;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.server.WebFilter;
@@ -34,6 +35,12 @@ public class PragmaLogAutoConfiguration {
     @ConditionalOnMissingBean
     PragmaLogAlertRegistrar pragmaLogAlertRegistrar(ObjectProvider<LogAlertListener> listeners) {
         return new PragmaLogAlertRegistrar(listeners.orderedStream().toList());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    PragmaLogReloader pragmaLogReloader(Environment environment, PragmaLogProperties properties) {
+        return new PragmaLogReloader(environment, properties);
     }
 
     @Bean

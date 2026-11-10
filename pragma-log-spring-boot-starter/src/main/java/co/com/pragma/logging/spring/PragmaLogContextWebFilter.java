@@ -30,18 +30,17 @@ import reactor.core.publisher.Mono;
 public class PragmaLogContextWebFilter implements WebFilter {
 
     private final PragmaLogProperties.Http properties;
-    private final RequestCompletionLog completionLog;
-    private final HttpBodyCapture bodies;
 
+    /** Reads the properties on every request, so changes applied by a refresh take effect (CFG-06). */
     public PragmaLogContextWebFilter(PragmaLogProperties.Http properties) {
         this.properties = properties;
-        this.completionLog = new RequestCompletionLog(properties.getRequestLog());
-        this.bodies = properties.getBody().capture();
     }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
         long start = System.nanoTime();
+        RequestCompletionLog completionLog = new RequestCompletionLog(properties.getRequestLog());
+        HttpBodyCapture bodies = properties.getBody().capture();
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getPath().value();
         Map<String, String> context = RequestLogContext.build(properties, request.getMethod().name(), path,
@@ -69,10 +68,10 @@ public class PragmaLogContextWebFilter implements WebFilter {
 
         Mono<Void> handled = chain.filter(captured)
                 .doOnSuccess(done -> completionLog.write(context, status(exchange), start,
-                        bodies(exchange, requestBody, responseBody)))
+                        bodies(bodies, exchange, requestBody, responseBody)))
                 // Error handlers set the final status after the filters: take it from the exception.
                 .doOnError(error -> completionLog.write(context, status(error), start,
-                        bodies(exchange, requestBody, null)))
+                        bodies(bodies, exchange, requestBody, null)))
                 .doOnCancel(() -> completionLog.write(context, null, start));
         return handled.contextWrite(reactorContext -> reactorContext.put(PragmaMdcThreadLocalAccessor.KEY, context));
     }
@@ -104,7 +103,8 @@ public class PragmaLogContextWebFilter implements WebFilter {
         buffer.write(bytes, 0, bytes.length);
     }
 
-    private Map<String, Object> bodies(ServerWebExchange exchange, BodyBuffer requestBody, BodyBuffer responseBody) {
+    private static Map<String, Object> bodies(HttpBodyCapture bodies, ServerWebExchange exchange,
+            BodyBuffer requestBody, BodyBuffer responseBody) {
         Map<String, Object> captured = new LinkedHashMap<>();
         if (requestBody != null) {
             putIfPresent(captured, HttpLogContext.REQUEST_BODY, bodies.value(requestBody.bytes(), requestBody.total(),

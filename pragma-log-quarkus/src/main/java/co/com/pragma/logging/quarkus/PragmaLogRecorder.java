@@ -1,5 +1,6 @@
 package co.com.pragma.logging.quarkus;
 
+import co.com.pragma.logging.core.ConfigurationAdvice;
 import co.com.pragma.logging.core.HostName;
 import co.com.pragma.logging.core.PragmaLogSettings;
 import co.com.pragma.logging.core.StandardFields;
@@ -10,6 +11,7 @@ import co.com.pragma.logging.core.format.LogEventFormatter;
 import co.com.pragma.logging.core.format.PlainTextFormat;
 import co.com.pragma.logging.core.format.StructuredFormat;
 import co.com.pragma.logging.core.format.TimestampFormat;
+import co.com.pragma.logging.core.http.HttpLogSettings;
 import co.com.pragma.logging.core.layout.EventLayout;
 import co.com.pragma.logging.core.layout.StructuredEventWriter;
 import co.com.pragma.logging.core.masking.LogMasker;
@@ -113,11 +115,31 @@ public class PragmaLogRecorder {
         if (!stacktrace.include()) {
             hidden.add(StandardFields.STACKTRACE);
         }
-        StructuredEventWriter writer = new StructuredEventWriter(layout(settings, hidden), eventFormatter(settings),
-                alerts);
+        EventLayout layout = layout(settings, hidden);
+        StructuredEventWriter writer = new StructuredEventWriter(layout, eventFormatter(settings), alerts,
+                settings.alerts().truncate());
+        advise(settings, layout);
         return new RuntimeValue<>(Optional.of(new PragmaStructuredFormatter(masker, sanitizer, enrichers(settings), alerts, writer,
                 timestamp, staticFields(settings), stacktrace.include(), stacktrace.maxDepth(), stacktrace.maxLength(),
                 stacktrace.rootCauseFirst())));
+    }
+
+    /** Inconsistent settings are logged once as warnings (CFG-09). */
+    private static void advise(PragmaLogConfig settings, EventLayout layout) {
+        PragmaLogConfig.Masking masking = settings.masking();
+        PragmaLogConfig.Csv csv = settings.csv();
+        PragmaLogConfig.Http http = settings.http();
+        PragmaLogConfig.Alerts alerts = settings.alerts();
+        ConfigurationAdvice.reportOnce(ConfigurationAdvice.check(new ConfigurationAdvice.Settings(masking.enabled(),
+                masking.fields().orElse(null), masking.patterns().orElse(List.of()), settings.maxFieldLength(),
+                settings.format().name(), settings.json().pretty(),
+                csv.columns().isPresent() || csv.header() || !",".equals(csv.delimiter()),
+                settings.customFormatter().orElse(null), layout,
+                alerts.maxLogSize().map(MemorySize::asLongValue).orElse(0L), alerts.truncate(),
+                http.body().enabled(), http.body().maxSize().asLongValue(),
+                new HttpLogSettings(http.requestIdHeader(), http.headers().orElse(List.of()), http.excludeHeaders(),
+                        http.queryParams().orElse(List.of())))),
+                warning -> Logger.getLogger(PragmaLogRecorder.class).warn("pragma-log: " + warning));
     }
 
     private static EventLayout layout(PragmaLogConfig settings, Set<String> hidden) {

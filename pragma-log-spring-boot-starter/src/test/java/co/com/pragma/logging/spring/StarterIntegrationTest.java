@@ -38,6 +38,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.env.MapPropertySource;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -317,6 +318,48 @@ class StarterIntegrationTest {
             assertThat(after.has("paymentId")).isFalse();
             assertThat(after.get("region").asString()).isEqualTo("us-east-1");
         }
+    }
+
+    @Test
+    @DisplayName("changed properties apply without restarting through PragmaLogReloader (CFG-06)")
+    void hotReload(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.fields.env=before")) {
+            get(context, "req-h1");
+            assertThat(loginOf(output, "req-h1").get("env").asString()).isEqualTo("before");
+
+            context.getEnvironment().getPropertySources().addFirst(new MapPropertySource("changed", Map.of(
+                    "pragma.log.fields.env", "after", "pragma.log.http.headers", "X-Client-Id")));
+            context.getBean(PragmaLogReloader.class).reload();
+            get(context, "req-h2");
+
+            JsonNode after = loginOf(output, "req-h2");
+            assertThat(after.get("env").asString()).isEqualTo("after");
+            assertThat(after.get("http.header.x-client-id").asString()).isEqualTo("mobile");
+        }
+    }
+
+    @Test
+    @DisplayName("alerts.truncate cuts a log bigger than max-log-size; inconsistent settings are warned once (ALR-04, CFG-09)")
+    void truncateAndAdvice(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.alerts.max-log-size=700B",
+                "pragma.log.alerts.truncate=true", "pragma.log.alerts.console=false",
+                "pragma.log.csv.header=true")) {
+            assertThat(context.isActive()).isTrue();
+            LoggerFactory.getLogger("big.Logger").atInfo().addKeyValue("payload", "p".repeat(2_000)).log("Big one");
+
+            JsonNode big = jsonLine(output, "Big one");
+            assertThat(big.get("truncated").asBoolean()).isTrue();
+            assertThat(big.get("payload").asString()).contains("...[truncated ");
+            assertThat(output.getErr()).contains("pragma-log WARN: pragma.log.csv.* only applies to format csv, not json.");
+        }
+    }
+
+    private static JsonNode loginOf(CapturedOutput output, String requestId) throws Exception {
+        String found = await(output::getOut, text -> text.lines().anyMatch(line -> line.contains("\"Login ")
+                && line.contains("\"requestId\":\"" + requestId + "\"")));
+        return found.lines().filter(line -> line.startsWith("{") && line.contains("\"Login ")
+                        && line.contains("\"requestId\":\"" + requestId + "\""))
+                .map(line -> JsonMapper.shared().readTree(line)).findFirst().orElseThrow();
     }
 
     @Test

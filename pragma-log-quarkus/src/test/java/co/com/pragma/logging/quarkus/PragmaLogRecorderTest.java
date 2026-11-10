@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.quarkus.runtime.RuntimeValue;
+import io.quarkus.runtime.configuration.MemorySize;
+import io.quarkus.runtime.configuration.MemorySizeConverter;
 import io.smallrye.config.WithDefault;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -60,6 +62,9 @@ class PragmaLogRecorderTest {
             }
             if (type == List.class) {
                 return Arrays.asList(value.split(","));
+            }
+            if (type == MemorySize.class) {
+                return new MemorySizeConverter().convert(value);
             }
             return value;
         }

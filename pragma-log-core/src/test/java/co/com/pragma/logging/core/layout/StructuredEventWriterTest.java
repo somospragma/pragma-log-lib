@@ -81,4 +81,42 @@ class StructuredEventWriterTest {
             throw new IllegalStateException("broken");
         }
     }
+
+    @Test
+    @DisplayName("alerts.truncate cuts the biggest fields until the event fits, keeping identifying fields (ALR-04)")
+    void truncate() {
+        Recorder recorder = new Recorder();
+        StructuredEventWriter writer = new StructuredEventWriter(EventLayout.defaults(), new JsonEventFormatter(false),
+                new LogAlerts(400, false, List.of(recorder)), true);
+        EventFields fields = new EventFields()
+                .standard("timestamp", "2026-11-10T10:00:00Z")
+                .standard("level", "INFO")
+                .standard("logger", "a.B")
+                .standard("message", "Big " + "m".repeat(300))
+                .dynamic("payload", tools.jackson.databind.json.JsonMapper.shared().readTree(
+                        "{\"items\":\"" + "x".repeat(500) + "\"}"))
+                .dynamic("small", "ok");
+
+        String line = writer.write(fields, "a.B", "INFO");
+
+        assertThat(co.com.pragma.logging.core.alert.LogAlerts.utf8Length(line)).isLessThanOrEqualTo(400);
+        tools.jackson.databind.JsonNode json = tools.jackson.databind.json.JsonMapper.shared().readTree(line);
+        assertThat(json.get("truncated").asBoolean()).isTrue();
+        assertThat(json.get("payload").asString()).startsWith("[truncated ");
+        assertThat(json.get("message").asString()).startsWith("Big mmm").contains("...[truncated ");
+        assertThat(json.get("timestamp").asString()).isEqualTo("2026-11-10T10:00:00Z");
+        assertThat(json.get("small").asString()).isEqualTo("ok");
+        assertThat(recorder.alerts).singleElement().isInstanceOf(LargeLogAlert.class);
+    }
+
+    @Test
+    @DisplayName("without truncate, or below the limit, the event is written whole")
+    void noTruncation() {
+        EventFields fields = new EventFields().standard("message", "x".repeat(500));
+
+        assertThat(new StructuredEventWriter(EventLayout.defaults(), new JsonEventFormatter(false),
+                new LogAlerts(100, false, List.of()), false).write(fields, "a.B", "INFO")).contains("x".repeat(500));
+        assertThat(new StructuredEventWriter(EventLayout.defaults(), new JsonEventFormatter(false),
+                new LogAlerts(0, false, List.of()), true).write(fields, "a.B", "INFO")).contains("x".repeat(500));
+    }
 }

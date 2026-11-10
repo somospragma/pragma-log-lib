@@ -12,12 +12,24 @@ import org.springframework.core.env.Environment;
  * structured logging format like the JSON one. Console and file use separate subclasses because only the
  * console gets colors.
  */
-abstract class PragmaTextLogFormatter implements StructuredLogFormatter<ILoggingEvent> {
+abstract class PragmaTextLogFormatter implements StructuredLogFormatter<ILoggingEvent>,
+        PragmaLogReloader.Reloadable {
 
-    private final PragmaTextEncoder encoder;
+    private final Environment environment;
+    private final boolean console;
+    private volatile PragmaTextEncoder encoder;
 
     PragmaTextLogFormatter(Environment environment, boolean console) {
+        this.environment = environment;
+        this.console = console;
         this.encoder = PragmaEncoderFactory.text(environment, PragmaStructuredLogFormatter.logbackContext(), console);
+    }
+
+    @Override
+    public void reload() {
+        PragmaTextEncoder previous = encoder;
+        encoder = PragmaEncoderFactory.text(environment, PragmaStructuredLogFormatter.logbackContext(), console);
+        previous.stop();
     }
 
     @Override
@@ -27,6 +39,7 @@ abstract class PragmaTextLogFormatter implements StructuredLogFormatter<ILogging
 
     @Override
     public byte[] formatAsBytes(ILoggingEvent event, Charset charset) {
-        return StandardCharsets.UTF_8.equals(charset) ? encoder.encode(event) : format(event).getBytes(charset);
+        byte[] bytes = encoder.encode(event);
+        return StandardCharsets.UTF_8.equals(charset) ? bytes : new String(bytes, StandardCharsets.UTF_8).getBytes(charset);
     }
 }

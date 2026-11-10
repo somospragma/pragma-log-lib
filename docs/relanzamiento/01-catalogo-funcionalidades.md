@@ -111,7 +111,7 @@
 | ALR-01 | Umbral de tamaño de log (`maxLogSize`) con alerta en consola | S | 🟡 | SHOULD | Solo funciona si hay `hooks` configurados; mide chars, no bytes. **Hecho en v2 (2026-11-02):** `alerts.max-log-size` en bytes UTF-8; aviso en stderr limitado a uno por minuto por logger, sin listeners configurados. |
 | ALR-02 | Hooks `LogAlertListener` registrables por config o código | S | 🟡 | SHOULD | Por código no funciona si `hooks` está vacío. **Hecho en v2 (2026-11-02):** por config (`alerts.listeners`), por código (`LogAlerts.register`) y como bean de Spring; un listener que falla o que loguea no rompe ni genera alertas en bucle. |
 | ALR-03 | Hook `onMaskingError` | S | ⚪ | SHOULD | Nunca se dispara. **Hecho en v2 (2026-11-02):** se dispara en cada fallback de masking o encoding (cubre también ALR-05). |
-| ALR-04 | Truncar el log si supera el umbral (opcional) | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. |
+| ALR-04 | Truncar el log si supera el umbral (opcional) | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `alerts.truncate` recorta los campos más grandes hasta caber, con `"truncated":true`. |
 | ALR-05 | Hook de error interno de la librería (fallback) | N | — | MUST | Ligado a NFR-05: la librería nunca rompe ni pierde logs. |
 
 ### 1.8 Configuración (CFG)
@@ -123,10 +123,10 @@
 | CFG-03 | Merge profundo base + usuario | S | 🟡 | MUST | Booleanos omitidos quedan en `false`; listas reemplazan. |
 | CFG-04 | Config desde `application.yml` en Spring (`pragma.log.*`) | S | — | MUST | La spec lo pide; el código no lo hace. |
 | CFG-05 | Validación con errores claros | S | 🔴 | MUST | Hoy un error de YAML cae **en silencio** a la config base. |
-| CFG-06 | Hot-reload de configuración | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. |
+| CFG-06 | Hot-reload de configuración | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** Spring con `EnvironmentChangeEvent` o `PragmaLogReloader.reload()`; Java puro con `scan` de Logback. Quarkus no (decisión de producto). |
 | CFG-07 | Config en Quarkus (`application.properties`) | S | — | MUST | — Hecho en v2 (2026-10-31): `pragma.log.*` en `application.properties`. |
 | CFG-08 | Override por variables de entorno / system properties | N | 🟡 | SHOULD | Solo existe `pragma.log.forceColors`. |
-| CFG-09 | Advertir inconsistencias (p. ej. `multiThread: true` sin AsyncAppender) | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. |
+| CFG-09 | Advertir inconsistencias (p. ej. `multiThread: true` sin AsyncAppender) | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `ConfigurationAdvice`: advertencias únicas al arrancar en Spring, Quarkus y Logback. |
 
 ### 1.9 Rendimiento (PERF)
 

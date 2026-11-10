@@ -1,12 +1,15 @@
 package co.com.pragma.logging.spring;
 
 import ch.qos.logback.core.Context;
+import co.com.pragma.logging.core.ConfigurationAdvice;
 import co.com.pragma.logging.core.PragmaLogSettings;
 import co.com.pragma.logging.core.format.ColorMode;
 import co.com.pragma.logging.core.format.TimestampFormat;
 import co.com.pragma.logging.logback.PragmaStructuredEncoder;
 import co.com.pragma.logging.logback.PragmaTextEncoder;
+import co.com.pragma.logging.core.layout.EventLayout;
 import java.util.List;
+import java.util.Set;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.env.Environment;
 
@@ -75,6 +78,7 @@ final class PragmaEncoderFactory {
         PragmaLogProperties.Alerts alerts = properties.getAlerts();
         encoder.setMaxLogSize(alerts.getMaxLogSize() == null ? 0 : alerts.getMaxLogSize().toBytes());
         encoder.setAlertConsole(alerts.isConsole());
+        encoder.setTruncateLargeLogs(alerts.isTruncate());
         alerts.getListeners().forEach(encoder::addAlertListener);
         properties.getEnrichers().forEach(encoder::addEnricher);
 
@@ -86,7 +90,35 @@ final class PragmaEncoderFactory {
 
         encoder.start();
         failOnErrors(encoder.getConfigurationErrors(), encoder::stop);
+        advise(properties);
         return encoder;
+    }
+
+    /**
+     * Inconsistent settings are written once to standard error (CFG-09): logging is still starting, so they cannot
+     * go through it.
+     */
+    static void advise(PragmaLogProperties properties) {
+        PragmaLogProperties.Masking masking = properties.getMasking();
+        PragmaLogProperties.Csv csv = properties.getCsv();
+        PragmaLogProperties.Http http = properties.getHttp();
+        PragmaLogProperties.Alerts alerts = properties.getAlerts();
+        EventLayout layout;
+        try {
+            layout = new EventLayout(Set.copyOf(properties.getHideFields()), properties.getRenameFields(),
+                    properties.getFieldOrder(), properties.getRequiredFields(), properties.getRequiredPlaceholder(),
+                    properties.getExtraField());
+        } catch (RuntimeException e) {
+            layout = null; // already reported as an error by the encoder
+        }
+        ConfigurationAdvice.reportOnce(ConfigurationAdvice.check(new ConfigurationAdvice.Settings(masking.isEnabled(),
+                masking.getFields(), masking.getPatterns(), properties.getMaxFieldLength(),
+                properties.getFormat().name(), properties.getJson().isPretty(),
+                !csv.getColumns().isEmpty() || csv.isHeader() || !",".equals(csv.getDelimiter()),
+                properties.getCustomFormatter(), layout,
+                alerts.getMaxLogSize() == null ? 0 : alerts.getMaxLogSize().toBytes(), alerts.isTruncate(),
+                http.getBody().isEnabled(), http.getBody().getMaxSize().toBytes(), http.settings())),
+                warning -> System.err.println("pragma-log WARN: " + warning));
     }
 
     /** @param console whether the encoder writes to the console; files never get colors */

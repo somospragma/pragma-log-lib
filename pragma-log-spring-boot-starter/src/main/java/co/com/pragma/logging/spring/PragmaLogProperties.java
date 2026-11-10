@@ -267,6 +267,12 @@ public class PragmaLogProperties {
         /** Whether alerts are also written to standard error, at most once per minute per logger. */
         private boolean console = true;
 
+        /**
+         * Whether a log bigger than max-log-size is cut until it fits: its biggest fields are shortened and
+         * "truncated": true is added. Off by default: the log is written whole.
+         */
+        private boolean truncate;
+
         /** LogAlertListener classes with a public no-arg constructor. LogAlertListener beans are added too. */
         private List<String> listeners = new ArrayList<>();
 
@@ -284,6 +290,14 @@ public class PragmaLogProperties {
 
         public void setConsole(boolean console) {
             this.console = console;
+        }
+
+        public boolean isTruncate() {
+            return truncate;
+        }
+
+        public void setTruncate(boolean truncate) {
+            this.truncate = truncate;
         }
 
         public List<String> getListeners() {

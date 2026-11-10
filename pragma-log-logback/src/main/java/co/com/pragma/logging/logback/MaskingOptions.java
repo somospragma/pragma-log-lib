@@ -23,10 +23,28 @@ final class MaskingOptions {
     private String defaultType = MaskType.FULL.name();
     private int defaultLength = MaskingSettings.DEFAULT_LENGTH;
     private Set<String> fields = MaskingSettings.DEFAULT_FIELDS;
+    private boolean customFields;
     private int maxDepth = MaskingSettings.DEFAULT_MAX_DEPTH;
     private final Map<String, String> strategies = new LinkedHashMap<>();
     private final List<String> patterns = new ArrayList<>();
     private int maxFieldLength;
+
+    boolean enabled() {
+        return enabled;
+    }
+
+    /** The configured field names, or {@code null} when the secure default list is used. */
+    List<String> customFields() {
+        return customFields ? List.copyOf(fields) : null;
+    }
+
+    List<String> patterns() {
+        return List.copyOf(patterns);
+    }
+
+    int maxFieldLength() {
+        return maxFieldLength;
+    }
 
     void setEnabled(boolean enabled) {
         this.enabled = enabled;
@@ -50,6 +68,7 @@ final class MaskingOptions {
     }
 
     void setFields(String fields) {
+        this.customFields = true;
         this.fields = Arrays.stream(fields.split(","))
                 .map(String::trim)
                 .filter(name -> !name.isEmpty())

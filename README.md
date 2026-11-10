@@ -46,6 +46,7 @@ pragma:
     max-field-length: 4000             # trunca mensajes y valores de texto largos
     alerts:
       max-log-size: 64KB               # avisa cuando un log supera ese tamaño
+      truncate: true                   # y además lo recorta hasta que quepa
     stacktrace:
       max-depth: 30
     http:
@@ -210,7 +211,7 @@ Las anotaciones y los nombres no ven datos metidos dentro de un texto (`"cobrado
 Cada patrón recorre todos los logs, así que mantén la lista corta. Está apagado por defecto.
 
 - `max-field-length`: corta el mensaje y cada valor de texto largo con `...[truncated N chars]`. Primero se enmascara y después se corta, así ningún pedazo de un secreto queda visible. El stack trace tiene su propio límite.
-- `alerts.max-log-size`: cuando un log supera ese tamaño (bytes UTF-8 ya codificado), se avisa. El log se escribe completo.
+- `alerts.max-log-size`: cuando un log supera ese tamaño (bytes UTF-8 ya codificado), se avisa. El log se escribe completo, salvo que actives `alerts.truncate: true`: entonces se recortan sus campos más grandes (los textos conservan el comienzo, los objetos se reemplazan por una nota) hasta que quepa, y el log lleva `"truncated":true`. `timestamp`, `level`, `logger`, `thread` y `app` nunca se recortan. Aplica a JSON, XML, CSV y formatos propios.
 - Avisos: por defecto una línea en la salida de error, máximo una por minuto por logger (`alerts.console: false` la apaga). Para llevarlos a una métrica o una notificación, implementa `LogAlertListener` (`onLargeLog`, `onMaskingError`, que avisa cuando un log no se pudo enmascarar, y `onMissingFields`, cuando a un log le faltan campos obligatorios). Regístralo como bean de Spring, en `alerts.listeners` con el nombre de la clase, o con `LogAlerts.register(...)`. Si hay appender de consola y de archivo, cada uno avisa por su lado.
 
 En `logback.xml`: `<maskPattern>CARD</maskPattern>` (se puede repetir), `<maxFieldLength>`, `<maxLogSize>` (bytes), `<alertListener>` (se puede repetir) y `<alertConsole>`. Un patrón o un listener inválidos detienen el arranque en Spring y Quarkus.
@@ -270,6 +271,12 @@ class PaymentService {
 ```
 
 Los valores simples se escriben tal cual y los objetos como JSON enmascarado. Al terminar el método se restauran los valores anteriores del MDC. Con `Mono`, `Flux` o `Uni` los campos viajan hasta que el flujo termina, en cualquier hilo. En Spring solo hace falta spring-aop (viene con Spring), no AspectJ.
+
+## Cambios de configuración en caliente y advertencias
+
+**Sin reiniciar.** En Spring Boot, los cambios a `pragma.log.*` se aplican solos cuando Spring Cloud publica un `EnvironmentChangeEvent` (endpoint `refresh`, ConfigMaps de Kubernetes, Config Server). Si cambias el `Environment` de otra forma, llama `PragmaLogReloader.reload()` (es un bean). Aplica a masking, campos, distribución, alertas, stack trace, timestamp y contexto HTTP; pasar de `plain` a un formato estructurado sigue pidiendo reinicio. Si la configuración nueva es inválida, se mantiene la anterior y se avisa por la salida de error. En Java puro usa `<configuration scan="true">` en `logback.xml`: Logback relee el archivo y crea encoders nuevos. Quarkus no relee su configuración en caliente.
+
+**Advertencias.** Al arrancar se avisa, una sola vez y sin detener la app, de combinaciones que no hacen lo que parecen. Algunos ejemplos: `json.pretty` con otro formato o en producción, `csv.*` sin `format: csv`, `alerts.truncate` sin `max-log-size`, un campo obligatorio que también está oculto, dos campos renombrados al mismo nombre, `masking.enabled: false` con patrones o bodies, `masking.fields: []`, o `http.headers: "*"` sin `exclude-headers`. En Spring salen por la salida de error, en Quarkus como WARN y en `logback.xml` en el estado de Logback.
 
 ## Formatos y distribución de campos
 

@@ -2,6 +2,7 @@ package co.com.pragma.logging.logback;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.encoder.EncoderBase;
+import co.com.pragma.logging.core.ConfigurationAdvice;
 import co.com.pragma.logging.core.HostName;
 import co.com.pragma.logging.core.PragmaLogSettings;
 import co.com.pragma.logging.core.StandardFields;
@@ -180,6 +181,11 @@ public class PragmaStructuredEncoder extends EncoderBase<ILoggingEvent> {
         alertOptions.addEnricher(className);
     }
 
+    /** Whether an event bigger than {@code maxLogSize} is cut until it fits, with {@code "truncated":true} (ALR-04). */
+    public void setTruncateLargeLogs(boolean truncateLargeLogs) {
+        alertOptions.setTruncate(truncateLargeLogs);
+    }
+
     /** Whether alerts are also written to standard error, at most once per minute per logger. Default true. */
     public void setAlertConsole(boolean alertConsole) {
         alertOptions.setConsole(alertConsole);
@@ -295,7 +301,9 @@ public class PragmaStructuredEncoder extends EncoderBase<ILoggingEvent> {
         eventMasker = new EventMasker(masker, buildSanitizer());
         alerts = buildAlerts();
         enrichers = buildEnrichers();
-        writer = new StructuredEventWriter(buildLayout(), buildFormatter(), alerts);
+        EventLayout layout = buildLayout();
+        writer = new StructuredEventWriter(layout, buildFormatter(), alerts, alertOptions.truncate());
+        adviseOn(layout);
         timestamp = buildTimestamp();
         staticFields = staticFields(settings.appName());
         throwableConverter = new MaskingThrowableConverter(eventMasker.sanitizer(), stacktraceMaxDepth,
@@ -445,6 +453,15 @@ public class PragmaStructuredEncoder extends EncoderBase<ILoggingEvent> {
 
     private LogEnrichers buildEnrichers() {
         return alertOptions.buildEnrichers(e -> configurationError("pragma-log: invalid enricher: " + e.getMessage(), e));
+    }
+
+    /** Settings that are valid but inconsistent are reported as warnings (CFG-09). */
+    private void adviseOn(EventLayout layout) {
+        boolean csv = !csvColumns.isEmpty() || csvHeader || !",".equals(csvDelimiter);
+        ConfigurationAdvice.check(new ConfigurationAdvice.Settings(masking.enabled(), masking.customFields(),
+                masking.patterns(), masking.maxFieldLength(), format, pretty, csv, customFormatter, layout,
+                alertOptions.maxLogSize(), alertOptions.truncate(), false, 0, null))
+                .forEach(warning -> addWarn("pragma-log: " + warning));
     }
 
     /** An invalid layout is reported and replaced by the default one. */

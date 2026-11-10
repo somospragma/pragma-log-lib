@@ -17,12 +17,23 @@ import org.springframework.core.env.Environment;
  * <p>Activated automatically by the starter through {@code logging.structured.format.console}
  * and {@code logging.structured.format.file}, so no {@code logback-spring.xml} is needed.
  */
-public class PragmaStructuredLogFormatter implements StructuredLogFormatter<ILoggingEvent> {
+public final class PragmaStructuredLogFormatter implements StructuredLogFormatter<ILoggingEvent>,
+        PragmaLogReloader.Reloadable {
 
-    private final PragmaStructuredEncoder encoder;
+    private final Environment environment;
+    private volatile PragmaStructuredEncoder encoder;
 
     public PragmaStructuredLogFormatter(Environment environment) {
+        this.environment = environment;
         this.encoder = PragmaEncoderFactory.structured(environment, logbackContext());
+        PragmaLogReloader.register(this);
+    }
+
+    @Override
+    public void reload() {
+        PragmaStructuredEncoder previous = encoder;
+        encoder = PragmaEncoderFactory.structured(environment, logbackContext());
+        previous.stop();
     }
 
     @Override
@@ -32,7 +43,8 @@ public class PragmaStructuredLogFormatter implements StructuredLogFormatter<ILog
 
     @Override
     public byte[] formatAsBytes(ILoggingEvent event, Charset charset) {
-        return StandardCharsets.UTF_8.equals(charset) ? encoder.encode(event) : format(event).getBytes(charset);
+        byte[] bytes = encoder.encode(event);
+        return StandardCharsets.UTF_8.equals(charset) ? bytes : new String(bytes, StandardCharsets.UTF_8).getBytes(charset);
     }
 
     static Context logbackContext() {

@@ -120,7 +120,8 @@ public final class LogAlerts {
         }
     }
 
-    static long utf8Length(CharSequence text) {
+    /** UTF-8 bytes of a text, without encoding it. */
+    public static long utf8Length(CharSequence text) {
         long bytes = 0;
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);

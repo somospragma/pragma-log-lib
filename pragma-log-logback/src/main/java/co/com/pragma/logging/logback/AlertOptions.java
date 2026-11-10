@@ -13,6 +13,7 @@ final class AlertOptions {
 
     private long maxLogSize;
     private boolean console = true;
+    private boolean truncate;
     private final List<String> listeners = new ArrayList<>();
     private final List<String> enrichers = new ArrayList<>();
 
@@ -22,6 +23,18 @@ final class AlertOptions {
 
     void setConsole(boolean console) {
         this.console = console;
+    }
+
+    void setTruncate(boolean truncate) {
+        this.truncate = truncate;
+    }
+
+    boolean truncate() {
+        return truncate;
+    }
+
+    long maxLogSize() {
+        return maxLogSize;
     }
 
     void addListener(String className) {

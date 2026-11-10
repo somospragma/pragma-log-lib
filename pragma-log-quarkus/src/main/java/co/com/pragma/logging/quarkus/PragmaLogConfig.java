@@ -178,8 +178,15 @@ public interface PragmaLogConfig {
         @WithDefault("true")
         boolean console();
 
-        /** LogAlertListener classes with a public no-arg constructor. */
+        /** LogAlertListener classes with a public no-arg constructor. CDI beans work too. */
         Optional<List<String>> listeners();
+
+        /**
+         * Whether a log bigger than max-log-size is cut until it fits: its biggest fields are shortened and
+         * "truncated": true is added. Off by default: the log is written whole.
+         */
+        @WithDefault("false")
+        boolean truncate();
     }
 
     interface Timestamp {

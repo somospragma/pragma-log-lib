@@ -175,6 +175,44 @@ class PragmaStructuredEncoderTest {
     }
 
     @Test
+    @DisplayName("truncateLargeLogs cuts a log bigger than maxLogSize until it fits (ALR-04)")
+    void truncate() {
+        start(e -> {
+            e.setMaxLogSize(500);
+            e.setTruncateLargeLogs(true);
+            e.setAlertConsole(false);
+        });
+        LoggingEvent event = event("Big");
+        event.setKeyValuePairs(List.of(new KeyValuePair("payload", "p".repeat(2_000))));
+
+        String line = encode(event);
+
+        assertThat(line.getBytes(StandardCharsets.UTF_8).length).isLessThanOrEqualTo(500);
+        JsonNode json = JsonMapper.shared().readTree(line);
+        assertThat(json.get("truncated").asBoolean()).isTrue();
+        assertThat(json.get("payload").asString()).contains("...[truncated ");
+    }
+
+    @Test
+    @DisplayName("inconsistent settings are reported as Logback warnings (CFG-09)")
+    void advice() {
+        start(e -> {
+            e.setFormat("xml");
+            e.setPretty(true);
+            e.setTruncateLargeLogs(true);
+            e.setMaskFields("");
+        });
+
+        assertThat(context.getStatusManager().getCopyOfStatusList().stream()
+                .filter(status -> status.getLevel() == ch.qos.logback.core.status.Status.WARN)
+                .map(ch.qos.logback.core.status.Status::getMessage))
+                .anyMatch(message -> message.contains("pragma.log.json.pretty only applies to format json, not xml"))
+                .anyMatch(message -> message.contains("pragma.log.alerts.truncate needs"))
+                .anyMatch(message -> message.contains("pragma.log.masking.fields is empty"));
+        assertThat(encoder.getConfigurationErrors()).isEmpty();
+    }
+
+    @Test
     @DisplayName("invalid format, delimiter, layout and timestamp are reported and replaced by safe defaults")
     void invalidConfiguration() {
         start(e -> {
