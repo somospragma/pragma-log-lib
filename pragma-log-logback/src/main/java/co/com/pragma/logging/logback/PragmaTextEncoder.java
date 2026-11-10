@@ -2,6 +2,7 @@ package co.com.pragma.logging.logback;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.encoder.EncoderBase;
+import co.com.pragma.logging.core.StandardFields;
 import co.com.pragma.logging.core.format.ColorMode;
 import co.com.pragma.logging.core.format.PlainTextFormat;
 import co.com.pragma.logging.core.format.TimestampFormat;
@@ -258,8 +259,12 @@ public class PragmaTextEncoder extends EncoderBase<ILoggingEvent> {
         String stacktrace = includeStacktrace && event.getThrowableProxy() != null
                 ? throwableConverter.convert(event)
                 : null;
+        String message = StandardFields.message(event.getFormattedMessage(), () -> event.getThrowableProxy() == null
+                ? null
+                : eventMasker.sanitizer().maskOnly(event.getThrowableProxy().getClassName() + ": "
+                        + event.getThrowableProxy().getMessage()));
         String line = format.format(event.getInstant(), event.getLevel().toString(), event.getThreadName(),
-                event.getLoggerName(), event.getFormattedMessage(), fields, stacktrace);
+                event.getLoggerName(), message, fields, stacktrace);
         return line.getBytes(StandardCharsets.UTF_8);
     }
 

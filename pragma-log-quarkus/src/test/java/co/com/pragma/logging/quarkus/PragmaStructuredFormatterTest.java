@@ -171,4 +171,17 @@ class PragmaStructuredFormatterTest {
         assertThat(json.get("extra").get("orderId").asString()).isEqualTo("o-1");
         assertThat(json.get("userId").asString()).isEqualTo(EventLayout.DEFAULT_PLACEHOLDER);
     }
+
+    @Test
+    @DisplayName("an empty message is replaced by the exception or a placeholder (FLD-11)")
+    void emptyMessage() {
+        ExtLogRecord record = new ExtLogRecord(Level.ERROR, "", "test");
+        record.setLoggerName("co.com.pragma.Sample");
+        record.setThrown(new IllegalStateException("boom"));
+        ExtLogRecord blank = new ExtLogRecord(Level.INFO, null, "test");
+        blank.setLoggerName("co.com.pragma.Sample");
+
+        assertThat(format(record).get("message").asString()).isEqualTo("java.lang.IllegalStateException: boom");
+        assertThat(format(blank).get("message").asString()).isEqualTo("(empty message)");
+    }
 }

@@ -1,5 +1,6 @@
 package co.com.pragma.logging.quarkus;
 
+import co.com.pragma.logging.core.StandardFields;
 import co.com.pragma.logging.core.Throwables;
 import co.com.pragma.logging.core.format.PlainTextFormat;
 import co.com.pragma.logging.core.alert.LogAlerts;
@@ -57,8 +58,11 @@ public final class PragmaTextFormatter extends ExtFormatter {
                 ? masking.sanitizer().maskOnly(Throwables.stackTrace(thrown, stacktraceMaxDepth, stacktraceMaxLength,
                         stacktraceRootCauseFirst))
                 : null;
+        String text = StandardFields.message(message, () -> thrown == null
+                ? null
+                : masking.sanitizer().maskOnly(Throwables.describe(thrown)));
         String line = format.format(record.getInstant(), RecordMasking.level(record.getLevel()), record.getThreadName(),
-                record.getLoggerName(), message, fields, stacktrace);
+                record.getLoggerName(), text, fields, stacktrace);
         alerts.checkSize(record.getLoggerName(), RecordMasking.level(record.getLevel()), line);
         return line;
     }

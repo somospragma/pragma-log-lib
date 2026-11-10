@@ -1,6 +1,7 @@
 package co.com.pragma.logging.core;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Names of the standard fields of the Pragma log schema (FLD-01).
@@ -28,6 +29,24 @@ public final class StandardFields {
     public static final List<String> ALL = List.of(TIMESTAMP, LEVEL, LOGGER, THREAD, MESSAGE, APP, VERSION, HOST, PID,
             ERROR, STACKTRACE);
 
+    /** Message written for a log without text or exception (FLD-11). */
+    public static final String EMPTY_MESSAGE = "(empty message)";
+
     private StandardFields() {
+    }
+
+    /**
+     * Returns the message of a log, never empty (FLD-11): a blank one is replaced by the logged exception or by
+     * {@link #EMPTY_MESSAGE}.
+     *
+     * @param exception summary of the logged exception, e.g. {@code java.lang.IllegalStateException: boom}; called
+     *                  only for a blank message, and may return {@code null} when there is none
+     */
+    public static String message(String message, Supplier<String> exception) {
+        if (message != null && !message.isBlank()) {
+            return message;
+        }
+        String summary = exception.get();
+        return summary == null || summary.isBlank() ? EMPTY_MESSAGE : summary;
     }
 }

@@ -213,6 +213,20 @@ class PragmaStructuredEncoderTest {
     }
 
     @Test
+    @DisplayName("an empty message is replaced by the exception or a placeholder (FLD-11)")
+    void emptyMessage() {
+        start(e -> { });
+        LoggingEvent withError = new LoggingEvent(Logger.FQCN, logger, Level.ERROR, "", new IllegalStateException(
+                "boom"), null);
+        withError.setMDCPropertyMap(Map.of());
+
+        assertThat(JsonMapper.shared().readTree(encode(withError)).get("message").asString())
+                .isEqualTo("java.lang.IllegalStateException: boom");
+        assertThat(JsonMapper.shared().readTree(encode(event(" "))).get("message").asString())
+                .isEqualTo("(empty message)");
+    }
+
+    @Test
     @DisplayName("invalid format, delimiter, layout and timestamp are reported and replaced by safe defaults")
     void invalidConfiguration() {
         start(e -> {

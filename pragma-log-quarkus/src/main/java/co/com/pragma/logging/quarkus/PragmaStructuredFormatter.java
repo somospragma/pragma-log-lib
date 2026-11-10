@@ -86,9 +86,11 @@ public final class PragmaStructuredFormatter extends ExtFormatter {
                 .standard(StandardFields.LEVEL, level)
                 .standard(StandardFields.LOGGER, record.getLoggerName())
                 .standard(StandardFields.THREAD, record.getThreadName())
-                .standard(StandardFields.MESSAGE, failure == null
+                .standard(StandardFields.MESSAGE, StandardFields.message(failure == null
                         ? masking.message(record)
-                        : masking.sanitizer().text(record.getMessage()));
+                        : masking.sanitizer().text(record.getMessage()), () -> record.getThrown() == null
+                        ? null
+                        : masking.sanitizer().maskOnly(Throwables.describe(record.getThrown()))));
         if (failure == null) {
             masking.fields(record).forEach(fields::dynamic);
         }

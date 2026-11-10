@@ -45,7 +45,7 @@
 | FLD-08 | Truncar textos largos (`maxSizeText`) | S | ✅ | SHOULD | A convierte objetos a String al truncar; truncar solo Strings. **Hecho en v2 (2026-11-02):** `max-field-length` trunca el mensaje y los valores de texto (también dentro de objetos) después de enmascarar; números y stack trace no. |
 | FLD-09 | Incluir MDC automáticamente | S | ✅ A | MUST | En los encoders de A. |
 | FLD-10 | Argumentos estructurados (`log.info("msg", Map)`, `kv(...)`, objetos en `{}`) como campos | S | 🟡 A | MUST | A los agrega como `arg0..N`; el mensaje con `{}` usa `toString()` sin masking. |
-| FLD-11 | Nunca mensaje vacío | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. |
+| FLD-11 | Nunca mensaje vacío | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** un mensaje vacío se reemplaza por la excepción o por `(empty message)`, en todos los formatos. |
 | FLD-12 | Versión de la app, host, pid, entorno | N | — | SHOULD | Campos típicos de observabilidad. Hecho en v2 (2026-10-31): `version`, `host` (default), `pid` (opt-in). |
 
 ### 1.3 Excepciones (ERR)

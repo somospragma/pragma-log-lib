@@ -236,6 +236,8 @@ En `logback.xml`: `<maskPattern>CARD</maskPattern>` (se puede repetir), `<maxFie
 | `timestampPattern` | `[ISO_INSTANT]` | Patrón de `DateTimeFormatter` o una constante entre corchetes. Default `[ISO_OFFSET_DATE_TIME]`. |
 | `timeZone` | `UTC` | Zona horaria del timestamp. Default: la del sistema. |
 
+Ningún log sale sin mensaje: si viene vacío, el mensaje es la excepción logueada (`java.lang.IllegalStateException: boom`) o, si no hay, `(empty message)`.
+
 Cuando se loguea una excepción, además del `stacktrace` sale un resumen fácil de buscar:
 
 ```json

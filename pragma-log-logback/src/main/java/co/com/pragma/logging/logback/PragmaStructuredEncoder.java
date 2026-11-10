@@ -1,6 +1,7 @@
 package co.com.pragma.logging.logback;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.core.encoder.EncoderBase;
 import co.com.pragma.logging.core.ConfigurationAdvice;
 import co.com.pragma.logging.core.HostName;
@@ -362,7 +363,8 @@ public class PragmaStructuredEncoder extends EncoderBase<ILoggingEvent> {
                 .standard(StandardFields.LEVEL, String.valueOf(event.getLevel()))
                 .standard(StandardFields.LOGGER, event.getLoggerName())
                 .standard(StandardFields.THREAD, event.getThreadName())
-                .standard(StandardFields.MESSAGE, event.getFormattedMessage());
+                .standard(StandardFields.MESSAGE, StandardFields.message(event.getFormattedMessage(),
+                        () -> exceptionSummary(event)));
         if (failure == null) {
             enrichers.fields(event.getLoggerName(), String.valueOf(event.getLevel())).forEach((name, value) -> {
                 Object masked = eventMasker.maskField(name, value);
@@ -391,6 +393,15 @@ public class PragmaStructuredEncoder extends EncoderBase<ILoggingEvent> {
         }
         String text = writer.write(fields, event.getLoggerName(), String.valueOf(event.getLevel()));
         return text.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private String exceptionSummary(ILoggingEvent event) {
+        IThrowableProxy throwable = event.getThrowableProxy();
+        if (throwable == null) {
+            return null;
+        }
+        return eventMasker.sanitizer().maskOnly(throwable.getMessage() == null ? throwable.getClassName()
+                : throwable.getClassName() + ": " + throwable.getMessage());
     }
 
     private byte[] encodeFallback(ILoggingEvent event, Throwable error) {
