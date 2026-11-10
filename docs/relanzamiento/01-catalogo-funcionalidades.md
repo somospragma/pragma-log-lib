@@ -119,7 +119,7 @@
 | ID | Funcionalidad | Origen | Estado actual | v1 | Notas |
 |---|---|---|---|---|---|
 | CFG-01 | Defaults seguros sin archivo de config | S | ✅ | MUST | — |
-| CFG-02 | Archivo propio `pragma-log-config.yml` / `.properties` en classpath | S | 🟡 | *ADR-2* | Properties en kebab-case no funciona. |
+| CFG-02 | Archivo propio `pragma-log-config.yml` / `.properties` en classpath | S | 🟡 | DROP | Properties en kebab-case no funciona. **Descartado (2026-11-09):** en Java puro la configuración va en `logback.xml`; en Spring y Quarkus, en su archivo de configuración. |
 | CFG-03 | Merge profundo base + usuario | S | 🟡 | MUST | Booleanos omitidos quedan en `false`; listas reemplazan. |
 | CFG-04 | Config desde `application.yml` en Spring (`pragma.log.*`) | S | — | MUST | La spec lo pide; el código no lo hace. |
 | CFG-05 | Validación con errores claros | S | 🔴 | MUST | Hoy un error de YAML cae **en silencio** a la config base. |
@@ -142,7 +142,7 @@
 | ID | Funcionalidad | Origen | Estado actual | v1 | Notas |
 |---|---|---|---|---|---|
 | INT-01 | Java puro (SLF4J + Logback encoder) | S | ✅ A | MUST | `PragmaLogbackEncoder`. |
-| INT-01b | API propia `PragmaLogger` | C | 🟡 A | MUST | Formatea dos veces y propaga excepciones; SLF4J basta. **v1 (2026-11-09):** entra por decisión de producto. |
+| INT-01b | API propia `PragmaLogger` | C | 🟡 A | DROP | Formatea dos veces y propaga excepciones; SLF4J basta. **Descartado (2026-11-09):** todo pasa por SLF4J, como en cualquier librería; la librería enmascara lo que llega por SLF4J. |
 | INT-02 | Spring Boot starter (auto-config, sin XML obligatorio) | S | 🟡 | MUST | A: sin `AutoConfiguration.imports`; B no compila. |
 | INT-02b | Spring tradicional (sin Boot) | S | — | DROP | — **Fuera (2026-11-09):** decisión de producto. |
 | INT-03 | Spring WebFlux | S | 🔴 | MUST | — |
