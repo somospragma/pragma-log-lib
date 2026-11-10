@@ -5,3 +5,7 @@ co.com.pragma.logging.spring.PragmaLogEnvironmentPostProcessor
 # Spring Boot 3.x
 org.springframework.boot.env.EnvironmentPostProcessor=\
 co.com.pragma.logging.spring.LegacyPragmaLogEnvironmentPostProcessor
+
+# Asynchronous logging (pragma.log.async.enabled)
+org.springframework.context.ApplicationListener=\
+co.com.pragma.logging.spring.PragmaAsyncLogging

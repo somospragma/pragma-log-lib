@@ -133,7 +133,7 @@
 | ID | Funcionalidad | Origen | Estado actual | v1 | Notas |
 |---|---|---|---|---|---|
 | PERF-01 | Benchmarks JMH + pruebas de estrés | S | — | MUST | — |
-| PERF-02 | Logging asíncrono (`multiThread`) | S | ⚪ | SHOULD | Config muerta; delegar en `AsyncAppender` de Logback. |
+| PERF-02 | Logging asíncrono (`multiThread`) | S | ⚪ | MUST | Config muerta; delegar en `AsyncAppender` de Logback. **Hecho en v2 (2026-11-10):** `PragmaAsyncAppender` (sin descartar, flush al apagar, enrichers en el hilo que loguea); Spring `pragma.log.async.enabled`; Quarkus con su `quarkus.log.*.async`. Probado con 8 hilos concurrentes. |
 | PERF-03 | Evitar reflexión en caliente (cache o annotation processor) | S | 🟡 | MUST | A hace `getDeclaredFields` por evento; B cachea. |
 | PERF-04 | Jackson Afterburner/Blackbird | S | — | LATER | Medir antes. |
 

@@ -3,6 +3,8 @@ package co.com.pragma.logging.spring;
 import co.com.pragma.logging.core.format.ColorMode;
 import co.com.pragma.logging.core.http.HttpBodyCapture;
 import co.com.pragma.logging.core.http.HttpLogSettings;
+import co.com.pragma.logging.logback.PragmaAsyncAppender;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -98,6 +100,7 @@ public class PragmaLogProperties {
     private final Timestamp timestamp = new Timestamp();
     private final Color color = new Color();
     private final Alerts alerts = new Alerts();
+    private final Async async = new Async();
     private final Json json = new Json();
     private final Csv csv = new Csv();
 
@@ -113,6 +116,57 @@ public class PragmaLogProperties {
         CSV,
         CUSTOM,
         PLAIN
+    }
+
+    public static class Async {
+
+        /**
+         * Whether logging calls return right away and another thread writes the logs. Nothing is discarded: when the
+         * queue is full the caller waits, unless never-block is true. Pending logs are written when the application
+         * stops.
+         */
+        private boolean enabled;
+
+        /** Logs waiting to be written. */
+        private int queueSize = PragmaAsyncAppender.DEFAULT_QUEUE_SIZE;
+
+        /** Whether logs are dropped instead of making the caller wait when the queue is full. */
+        private boolean neverBlock;
+
+        /** How long pending logs may take to be written when the application stops. */
+        private Duration maxFlushTime = Duration.ofMillis(PragmaAsyncAppender.DEFAULT_MAX_FLUSH_TIME_MS);
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getQueueSize() {
+            return queueSize;
+        }
+
+        public void setQueueSize(int queueSize) {
+            this.queueSize = queueSize;
+        }
+
+        public boolean isNeverBlock() {
+            return neverBlock;
+        }
+
+        public void setNeverBlock(boolean neverBlock) {
+            this.neverBlock = neverBlock;
+        }
+
+        public Duration getMaxFlushTime() {
+            return maxFlushTime;
+        }
+
+        public void setMaxFlushTime(Duration maxFlushTime) {
+            this.maxFlushTime = maxFlushTime;
+        }
     }
 
     public static class Json {
@@ -614,6 +668,10 @@ public class PragmaLogProperties {
 
     public void setCustomFormatter(String customFormatter) {
         this.customFormatter = customFormatter;
+    }
+
+    public Async getAsync() {
+        return async;
     }
 
     public Json getJson() {

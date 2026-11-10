@@ -354,6 +354,26 @@ class StarterIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("async.enabled wraps the appenders: logs are written by another thread, masked and with context")
+    void asyncLogging(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.async.enabled=true",
+                "pragma.log.async.queue-size=512")) {
+            ch.qos.logback.classic.Logger root = ((ch.qos.logback.classic.LoggerContext) LoggerFactory
+                    .getILoggerFactory()).getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME);
+            assertThat(root.getAppender("PRAGMA_ASYNC_CONSOLE"))
+                    .isInstanceOfSatisfying(co.com.pragma.logging.logback.PragmaAsyncAppender.class,
+                            async -> assertThat(async.getQueueSize()).isEqualTo(512));
+
+            get(context, "req-a");
+
+            JsonNode login = jsonLine(output, "Login ");
+            assertThat(login.get("requestId").asString()).isEqualTo("req-a");
+            assertThat(login.get("message").asString()).contains("4111********1111");
+            assertThat(output.getOut()).doesNotContain("s3cr3t");
+        }
+    }
+
     private static JsonNode loginOf(CapturedOutput output, String requestId) throws Exception {
         String found = await(output::getOut, text -> text.lines().anyMatch(line -> line.contains("\"Login ")
                 && line.contains("\"requestId\":\"" + requestId + "\"")));

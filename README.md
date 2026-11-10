@@ -59,6 +59,8 @@ pragma:
         enabled: true                  # bodies en el log de fin de request, enmascarados (apagado por defecto)
         max-size: 4KB
     enrichers: [com.acme.TenantEnricher]   # o como bean de Spring
+    async:
+      enabled: true                    # log.info(...) no espera la escritura
     context-keys: [userId, tenantId]   # WebFlux: valores del Reactor Context que salen en los logs
     timestamp:
       zone: America/Bogota             # pattern: [ISO_INSTANT] o yyyy-MM-dd HH:mm:ss.SSS
@@ -277,6 +279,24 @@ Los valores simples se escriben tal cual y los objetos como JSON enmascarado. Al
 **Sin reiniciar.** En Spring Boot, los cambios a `pragma.log.*` se aplican solos cuando Spring Cloud publica un `EnvironmentChangeEvent` (endpoint `refresh`, ConfigMaps de Kubernetes, Config Server). Si cambias el `Environment` de otra forma, llama `PragmaLogReloader.reload()` (es un bean). Aplica a masking, campos, distribución, alertas, stack trace, timestamp y contexto HTTP; pasar de `plain` a un formato estructurado sigue pidiendo reinicio. Si la configuración nueva es inválida, se mantiene la anterior y se avisa por la salida de error. En Java puro usa `<configuration scan="true">` en `logback.xml`: Logback relee el archivo y crea encoders nuevos. Quarkus no relee su configuración en caliente.
 
 **Advertencias.** Al arrancar se avisa, una sola vez y sin detener la app, de combinaciones que no hacen lo que parecen. Algunos ejemplos: `json.pretty` con otro formato o en producción, `csv.*` sin `format: csv`, `alerts.truncate` sin `max-log-size`, un campo obligatorio que también está oculto, dos campos renombrados al mismo nombre, `masking.enabled: false` con patrones o bodies, `masking.fields: []`, o `http.headers: "*"` sin `exclude-headers`. En Spring salen por la salida de error, en Quarkus como WARN y en `logback.xml` en el estado de Logback.
+
+## Logging asíncrono
+
+Con logging asíncrono la llamada `log.info(...)` vuelve de inmediato y otro hilo enmascara, formatea y escribe el log.
+
+- **Spring Boot:** `pragma.log.async.enabled: true`. Envuelve los appenders de consola y archivo de Spring Boot. Opciones: `queue-size` (8192), `never-block` (false) y `max-flush-time` (5s).
+- **Java puro:** `PragmaAsyncAppender` en `logback.xml`, con `<appender-ref>` al appender real.
+- **Quarkus:** usa el async propio de Quarkus (`quarkus.log.console.async=true`, `quarkus.log.file.async=true`); el formato de pragma-log se aplica igual.
+
+```xml
+<appender name="ASYNC" class="co.com.pragma.logging.logback.PragmaAsyncAppender">
+  <appender-ref ref="CONSOLE"/>
+</appender>
+```
+
+- **No se pierde nada:** a diferencia del `AsyncAppender` por defecto de Logback, no descarta logs `INFO`/`DEBUG` cuando la cola se llena. Quien loguea espera (`never-block: true` cambia esto y descarta). Al apagar la app se escriben los pendientes.
+- **El contexto es el del hilo que loguea:** el MDC y los campos de los enrichers registrados como bean o en código se toman en el hilo que llamó, no en el que escribe. En Quarkus los enrichers corren en el hilo que escribe, así que usa MDC para datos del request.
+- **Los objetos se enmascaran en el hilo que escribe:** no modifiques un objeto después de loguearlo.
 
 ## Formatos y distribución de campos
 
