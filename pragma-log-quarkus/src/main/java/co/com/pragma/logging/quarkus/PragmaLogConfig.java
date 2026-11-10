@@ -30,11 +30,19 @@ public interface PragmaLogConfig {
     boolean enabled();
 
     /**
-     * Output format: JSON (default) or PLAIN, readable text for local development with the same masking. Use a
-     * profile to pick PLAIN locally, e.g. %dev.pragma.log.format=plain.
+     * Output format: JSON (default), XML, CSV, CUSTOM (pragma.log.custom-formatter) or PLAIN, readable text for
+     * local development with the same masking. Use a profile to pick PLAIN locally, e.g.
+     * %dev.pragma.log.format=plain.
      */
     @WithDefault("json")
     Format format();
+
+    /** Class name of a LogEventFormatter with a public no-arg constructor, for format=custom. */
+    Optional<String> customFormatter();
+
+    Json json();
+
+    Csv csv();
 
     /** Value of the "app" field. Defaults to quarkus.application.name. */
     Optional<String> appName();
@@ -56,8 +64,24 @@ public interface PragmaLogConfig {
     /** Fields to remove: standard, fixed, MDC or key-value fields. */
     Optional<List<String>> hideFields();
 
-    /** Fields to rename, as current name=new name. */
+    /** Fields to rename, as current name=new name. A new name such as $.http.request.id nests the field. */
     Map<String, String> renameFields();
+
+    /** Fields written first, in this order, by original or new name. The rest keep their natural order. */
+    Optional<List<String>> fieldOrder();
+
+    /** Fields every log must have. A missing one is written with required-placeholder and reported as an alert. */
+    Optional<List<String>> requiredFields();
+
+    /** Value of a missing required field. */
+    @WithDefault("unknown")
+    String requiredPlaceholder();
+
+    /**
+     * Name of an object that groups MDC and key-value fields, e.g. extra. Fields named in field-order,
+     * rename-fields or required-fields stay at the root. Not set: everything at the root.
+     */
+    Optional<String> extraField();
 
     Masking masking();
 
@@ -80,7 +104,31 @@ public interface PragmaLogConfig {
 
     enum Format {
         JSON,
+        XML,
+        CSV,
+        CUSTOM,
         PLAIN
+    }
+
+    interface Json {
+
+        /** JSON over several lines, for local reading; log shippers expect one event per line. */
+        @WithDefault("false")
+        boolean pretty();
+    }
+
+    interface Csv {
+
+        /** Columns, by output name; nested fields with dots. Default: timestamp, level, logger, thread, message. */
+        Optional<List<String>> columns();
+
+        /** Column separator. */
+        @WithDefault(",")
+        String delimiter();
+
+        /** Whether a log file starts with the column names. */
+        @WithDefault("false")
+        boolean header();
     }
 
     interface Masking {

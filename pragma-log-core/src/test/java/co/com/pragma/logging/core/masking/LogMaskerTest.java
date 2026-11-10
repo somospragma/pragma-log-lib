@@ -47,6 +47,23 @@ class LogMaskerTest {
         String street = "Calle 1 # 2-3";
     }
 
+    /** On a class, the annotation masks each field; a field's own annotation wins (MSK-01b). */
+    @MaskedLogField(type = MaskType.PREFIX, length = 2)
+    static class Contact {
+        String phone = "3001234567";
+        String email = "ana@acme.com";
+        @MaskedLogField(type = MaskType.HIDDEN)
+        String note = "internal";
+    }
+
+    static class VipContact extends Contact {
+        String level = "gold";
+    }
+
+    @MaskedLogField(type = MaskType.SUFFIX, length = 3)
+    record Phone(String number) {
+    }
+
     static class BaseCredentials {
         @MaskedLogField
         String secretKey = "base-secret";
@@ -134,6 +151,19 @@ class LogMaskerTest {
     }
 
     // ---- Tests -------------------------------------------------------------------------------
+
+    @Test
+    @DisplayName("an annotated class masks each of its fields; subclasses inherit it (MSK-01b)")
+    void classLevelAnnotation() {
+        JsonNode contact = masker.toTree(new Contact());
+        JsonNode vip = masker.toTree(new VipContact());
+
+        assertThat(contact.get("phone").asString()).isEqualTo("**01234567");
+        assertThat(contact.get("email").asString()).isEqualTo("**a@acme.com");
+        assertThat(contact.has("note")).isFalse();
+        assertThat(vip.get("level").asString()).isEqualTo("**ld");
+        assertThat(masker.toTree(new Phone("3001234567")).get("number").asString()).isEqualTo("3001234***");
+    }
 
     @Nested
     @DisplayName("security regressions from the legacy implementation")

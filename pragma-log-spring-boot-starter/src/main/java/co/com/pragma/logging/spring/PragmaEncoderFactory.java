@@ -4,14 +4,14 @@ import ch.qos.logback.core.Context;
 import co.com.pragma.logging.core.PragmaLogSettings;
 import co.com.pragma.logging.core.format.ColorMode;
 import co.com.pragma.logging.core.format.TimestampFormat;
-import co.com.pragma.logging.logback.PragmaJsonEncoder;
+import co.com.pragma.logging.logback.PragmaStructuredEncoder;
 import co.com.pragma.logging.logback.PragmaTextEncoder;
 import java.util.List;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.env.Environment;
 
 /**
- * Builds the {@link PragmaJsonEncoder} or {@link PragmaTextEncoder} from Spring Boot configuration. Invalid
+ * Builds the {@link PragmaStructuredEncoder} or {@link PragmaTextEncoder} from Spring Boot configuration. Invalid
  * configuration stops startup (ADR-09): Spring Boot would otherwise start with a configuration nobody asked for.
  */
 final class PragmaEncoderFactory {
@@ -25,11 +25,23 @@ final class PragmaEncoderFactory {
                 .orElseGet(PragmaLogProperties::new);
     }
 
-    static PragmaJsonEncoder json(Environment environment, Context context) {
+    /** JSON, XML, CSV or a custom format, as set in {@code pragma.log.format}. */
+    static PragmaStructuredEncoder structured(Environment environment, Context context) {
         PragmaLogProperties properties = bind(environment);
         PragmaLogProperties.Timestamp timestamp = properties.getTimestamp();
         validateTimestamp(timestamp, TimestampFormat.JSON_DEFAULT);
-        PragmaJsonEncoder encoder = new PragmaJsonEncoder();
+        PragmaStructuredEncoder encoder = new PragmaStructuredEncoder();
+        encoder.setFormat(properties.getFormat().name());
+        encoder.setPretty(properties.getJson().isPretty());
+        PragmaLogProperties.Csv csv = properties.getCsv();
+        encoder.setCsvColumns(String.join(",", csv.getColumns()));
+        encoder.setCsvDelimiter(csv.getDelimiter());
+        encoder.setCsvHeader(csv.isHeader());
+        encoder.setCustomFormatter(properties.getCustomFormatter());
+        encoder.setFieldOrder(String.join(",", properties.getFieldOrder()));
+        encoder.setRequiredFields(String.join(",", properties.getRequiredFields()));
+        encoder.setRequiredPlaceholder(properties.getRequiredPlaceholder());
+        encoder.setExtraField(properties.getExtraField());
         encoder.setContext(context);
         encoder.setAppName(appName(properties, environment));
         encoder.setAppVersion(properties.getVersion() != null

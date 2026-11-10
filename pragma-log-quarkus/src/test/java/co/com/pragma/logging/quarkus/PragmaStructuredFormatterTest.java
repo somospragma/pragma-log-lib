@@ -3,7 +3,13 @@ package co.com.pragma.logging.quarkus;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import co.com.pragma.logging.core.alert.LogAlerts;
+import co.com.pragma.logging.core.format.CsvEventFormatter;
+import co.com.pragma.logging.core.format.JsonEventFormatter;
+import co.com.pragma.logging.core.format.LogEventFormatter;
 import co.com.pragma.logging.core.format.TimestampFormat;
+import co.com.pragma.logging.core.format.XmlEventFormatter;
+import co.com.pragma.logging.core.layout.EventLayout;
+import co.com.pragma.logging.core.layout.StructuredEventWriter;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskedLogField;
@@ -23,7 +29,7 @@ import org.slf4j.event.KeyValuePair;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
-class PragmaJsonFormatterTest {
+class PragmaStructuredFormatterTest {
 
     record Card(String holder, @MaskedLogField(type = MaskType.MIDDLE, length = 4) String number, String password) {
     }
@@ -31,10 +37,16 @@ class PragmaJsonFormatterTest {
     /** toString exposes everything, like many real classes do. */
     private final Card card = new Card("Ana", "4111111111111111", "s3cr3t");
 
-    private PragmaJsonFormatter formatter(Set<String> hidden, Map<String, String> renames) {
-        return new PragmaJsonFormatter(new LogMasker(MaskingSettings.defaults()),
-                new TextSanitizer(PatternMasker.of(List.of("CARD"), '*'), 0), LogAlerts.none(), TimestampFormat.of(TimestampFormat.JSON_DEFAULT, null), hidden, renames,
-                Map.of("app", "orders-service"), true, 50, 16_384, false);
+    private PragmaStructuredFormatter formatter(Set<String> hidden, Map<String, String> renames) {
+        return formatter(new EventLayout(hidden, renames, List.of(), List.of(), null, null), new JsonEventFormatter(false));
+    }
+
+    private PragmaStructuredFormatter formatter(EventLayout layout, LogEventFormatter format) {
+        return new PragmaStructuredFormatter(new LogMasker(MaskingSettings.defaults()),
+                new TextSanitizer(PatternMasker.of(List.of("CARD"), '*'), 0), LogAlerts.none(),
+                new StructuredEventWriter(layout, format, LogAlerts.none()),
+                TimestampFormat.of(TimestampFormat.JSON_DEFAULT, null), Map.of("app", "orders-service"), true, 50,
+                16_384, false);
     }
 
     private JsonNode format(ExtLogRecord record) {
@@ -120,5 +132,41 @@ class PragmaJsonFormatterTest {
         assertThat(json.has("thread")).isFalse();
         assertThat(json.has("app")).isFalse();
         assertThat(json.get("severity").asString()).isEqualTo("INFO");
+    }
+
+    @Test
+    @DisplayName("XML and CSV with the same masking; CSV header at the start of a file (FMT-04)")
+    void xmlAndCsv() {
+        ExtLogRecord record = new Slf4jLogRecord(Level.INFO, "Paid with {}", new Object[] {card},
+                List.of(new KeyValuePair("orderId", "o-1")), "test");
+        record.setLoggerName("co.com.pragma.Sample");
+
+        String xml = formatter(EventLayout.defaults(), new XmlEventFormatter()).format(record);
+        PragmaStructuredFormatter csv = formatter(EventLayout.defaults(),
+                new CsvEventFormatter(List.of("level", "orderId", "message"), ',', true));
+
+        assertThat(xml).startsWith("<event>").contains("<orderId>o-1</orderId>").contains("4111********1111")
+                .doesNotContain("4111111111111111");
+        assertThat(csv.getHead(null)).isEqualTo("level,orderId,message\n");
+        assertThat(csv.format(record)).startsWith("INFO,o-1,").doesNotContain("4111111111111111");
+        assertThat(formatter(EventLayout.defaults(), new XmlEventFormatter()).getHead(null)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("order, nested names, required fields and the extra object (FLD-04..07)")
+    void layout() {
+        ExtLogRecord record = new Slf4jLogRecord(Level.INFO, "Hello", null,
+                List.of(new KeyValuePair("orderId", "o-1"), new KeyValuePair("requestId", "r-1")), "test");
+        record.setLoggerName("co.com.pragma.Sample");
+        EventLayout layout = new EventLayout(Set.of("thread", "logger"), Map.of("requestId", "$.http.request.id"),
+                List.of("level", "message"), List.of("requestId", "userId"), null, "extra");
+
+        JsonNode json = JsonMapper.shared().readTree(formatter(layout, new JsonEventFormatter(false)).format(record));
+
+        assertThat(json.propertyNames()).containsExactly("level", "message", "timestamp", "extra", "http", "app",
+                "userId");
+        assertThat(json.get("http").get("request").get("id").asString()).isEqualTo("r-1");
+        assertThat(json.get("extra").get("orderId").asString()).isEqualTo("o-1");
+        assertThat(json.get("userId").asString()).isEqualTo(EventLayout.DEFAULT_PLACEHOLDER);
     }
 }

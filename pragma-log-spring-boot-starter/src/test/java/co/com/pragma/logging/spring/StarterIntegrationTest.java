@@ -179,6 +179,42 @@ class StarterIntegrationTest {
     }
 
     @Test
+    @DisplayName("XML and CSV formats come from application properties, with the same masking (FMT-04)")
+    void xmlAndCsvFormats(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.format=xml")) {
+            get(context, "req-x");
+
+            String xml = await(output::getOut, text -> text.contains("<message>Login "));
+            String line = xml.lines().filter(text -> text.contains("<message>Login ")).findFirst().orElseThrow();
+            assertThat(line).startsWith("<event>").contains("<requestId>req-x</requestId>")
+                    .contains("4111********1111").doesNotContain("s3cr3t");
+        }
+        try (ConfigurableApplicationContext context = start("pragma.log.format=csv",
+                "pragma.log.csv.columns=level,requestId,message")) {
+            get(context, "req-c");
+
+            String csv = await(output::getOut, text -> text.contains("INFO,req-c,Login "));
+            assertThat(csv).doesNotContain("4111111111111111");
+        }
+    }
+
+    @Test
+    @DisplayName("field order, nested names, required fields and the extra object from properties (FLD-04..07)")
+    void fieldLayout(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.field-order=level,message",
+                "pragma.log.rename-fields.requestId=$.http.request.id", "pragma.log.required-fields=userId",
+                "pragma.log.extra-field=extra", "pragma.log.http.headers=X-Client-Id")) {
+            get(context, "req-l");
+
+            JsonNode log = jsonLine(output, "Login ");
+            assertThat(log.propertyNames()).startsWith("level", "message");
+            assertThat(log.get("http").get("request").get("id").asString()).isEqualTo("req-l");
+            assertThat(log.get("extra").get("http.method").asString()).isEqualTo("GET");
+            assertThat(log.get("userId").asString()).isEqualTo("unknown");
+        }
+    }
+
+    @Test
     @DisplayName("patterns, truncation and alert listener beans work from application properties (MSK-10, FLD-08, ALR-02)")
     void patternsTruncationAndAlerts(CapturedOutput output) throws Exception {
         RecordingAlertListener.ALERTS.clear();

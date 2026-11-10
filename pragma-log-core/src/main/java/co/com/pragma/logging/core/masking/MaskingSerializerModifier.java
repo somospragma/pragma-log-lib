@@ -32,9 +32,12 @@ final class MaskingSerializerModifier extends ValueSerializerModifier {
         if (!masker.settings().enabled()) {
             return beanProperties;
         }
+        // On a class, the annotation masks each of its fields (MSK-01b); a field's own annotation wins.
+        MaskedLogField classAnnotation = beanDesc.getBeanClass().getAnnotation(MaskedLogField.class);
         List<BeanPropertyWriter> result = new ArrayList<>(beanProperties.size());
         for (BeanPropertyWriter writer : beanProperties) {
-            MaskedLogField annotation = writer.getAnnotation(MaskedLogField.class);
+            MaskedLogField own = writer.getAnnotation(MaskedLogField.class);
+            MaskedLogField annotation = own != null ? own : classAnnotation;
             if (annotation != null) {
                 // The annotation always wins over name-based masking.
                 if (annotation.type() != MaskType.HIDDEN) {

@@ -1,8 +1,8 @@
 package co.com.pragma.logging.core.alert;
 
 /**
- * Receives alerts about the logs themselves (ALR-02): an event bigger than {@code max-log-size} (ALR-01) or an
- * event that could not be masked or encoded (ALR-03, ALR-05). Typical uses are a metric or a notification.
+ * Receives alerts about the logs themselves (ALR-02): an event bigger than {@code max-log-size} (ALR-01), an
+ * event that could not be masked or encoded (ALR-03, ALR-05), or an event without required fields (FLD-07). Typical uses are a metric or a notification.
  *
  * <p>Register it with {@code pragma.log.alerts.listeners} (class name, public no-arg constructor), with
  * {@link LogAlerts#register(LogAlertListener)}, or, in Spring Boot, as a bean.
@@ -21,5 +21,9 @@ public interface LogAlertListener {
      * {@code pragmaLogError} field, never with unmasked data.
      */
     default void onMaskingError(MaskingErrorAlert alert) {
+    }
+
+    /** An event did not have some of the required fields. It was written with the placeholder in them. */
+    default void onMissingFields(MissingFieldsAlert alert) {
     }
 }

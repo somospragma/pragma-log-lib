@@ -91,6 +91,14 @@ public final class LogAlerts {
         dispatch(listener -> listener.onMaskingError(alert));
     }
 
+    /** Reports required fields an event did not have; does nothing when the list is empty. */
+    public void missingFields(String logger, String level, List<String> fields) {
+        if (!fields.isEmpty()) {
+            MissingFieldsAlert alert = new MissingFieldsAlert(logger, level, fields);
+            dispatch(listener -> listener.onMissingFields(alert));
+        }
+    }
+
     private void dispatch(Consumer<LogAlertListener> call) {
         if (DISPATCHING.get() != null) {
             return; // a listener logged something: no alerts about its own logs

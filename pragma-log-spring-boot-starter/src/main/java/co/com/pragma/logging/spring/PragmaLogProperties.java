@@ -34,10 +34,13 @@ public class PragmaLogProperties {
     private boolean enabled = true;
 
     /**
-     * Output format: JSON (default) or PLAIN, readable text for local development with the same masking. Use a
-     * Spring profile to pick PLAIN locally and JSON elsewhere.
+     * Output format: JSON (default), XML, CSV, CUSTOM (pragma.log.custom-formatter) or PLAIN, readable text for
+     * local development with the same masking. Use a Spring profile to pick PLAIN locally and JSON elsewhere.
      */
     private Format format = Format.JSON;
+
+    /** Class name of a LogEventFormatter with a public no-arg constructor, for format: custom. */
+    private String customFormatter;
 
     /** Value of the "app" field. Defaults to spring.application.name. */
     private String appName;
@@ -57,8 +60,26 @@ public class PragmaLogProperties {
     /** Fields to remove: standard, fixed, MDC or key-value fields. */
     private List<String> hideFields = new ArrayList<>();
 
-    /** Fields to rename, as current name: new name. */
+    /**
+     * Fields to rename, as current name: new name. A new name such as $.http.request.id nests the field inside
+     * objects.
+     */
     private Map<String, String> renameFields = new LinkedHashMap<>();
+
+    /** Fields written first, in this order, by original or new name. The rest keep their natural order. */
+    private List<String> fieldOrder = new ArrayList<>();
+
+    /** Fields every log must have. A missing one is written with required-placeholder and reported as an alert. */
+    private List<String> requiredFields = new ArrayList<>();
+
+    /** Value of a missing required field. */
+    private String requiredPlaceholder = "unknown";
+
+    /**
+     * Name of an object that groups MDC and key-value fields, e.g. extra. Fields named in field-order,
+     * rename-fields or required-fields stay at the root. Not set: everything at the root.
+     */
+    private String extraField;
 
     /**
      * Reactor Context keys copied to the logs, e.g. userId for contextWrite(Context.of("userId", id)). In
@@ -72,6 +93,8 @@ public class PragmaLogProperties {
     private final Timestamp timestamp = new Timestamp();
     private final Color color = new Color();
     private final Alerts alerts = new Alerts();
+    private final Json json = new Json();
+    private final Csv csv = new Csv();
 
     /**
      * Maximum characters of the message and of each text field; longer texts are cut with
@@ -81,7 +104,60 @@ public class PragmaLogProperties {
 
     public enum Format {
         JSON,
+        XML,
+        CSV,
+        CUSTOM,
         PLAIN
+    }
+
+    public static class Json {
+
+        /** JSON over several lines, for local reading; log shippers expect one event per line. */
+        private boolean pretty;
+
+        public boolean isPretty() {
+            return pretty;
+        }
+
+        public void setPretty(boolean pretty) {
+            this.pretty = pretty;
+        }
+    }
+
+    public static class Csv {
+
+        /** Columns, by output name; nested fields with dots. Default: timestamp, level, logger, thread, message. */
+        private List<String> columns = new ArrayList<>();
+
+        /** Column separator. */
+        private String delimiter = ",";
+
+        /** Whether a log file starts with the column names. */
+        private boolean header;
+
+        public List<String> getColumns() {
+            return columns;
+        }
+
+        public void setColumns(List<String> columns) {
+            this.columns = columns;
+        }
+
+        public String getDelimiter() {
+            return delimiter;
+        }
+
+        public void setDelimiter(String delimiter) {
+            this.delimiter = delimiter;
+        }
+
+        public boolean isHeader() {
+            return header;
+        }
+
+        public void setHeader(boolean header) {
+            this.header = header;
+        }
     }
 
     public static class Masking {
@@ -398,6 +474,54 @@ public class PragmaLogProperties {
 
     public void setFormat(Format format) {
         this.format = format;
+    }
+
+    public String getCustomFormatter() {
+        return customFormatter;
+    }
+
+    public void setCustomFormatter(String customFormatter) {
+        this.customFormatter = customFormatter;
+    }
+
+    public Json getJson() {
+        return json;
+    }
+
+    public Csv getCsv() {
+        return csv;
+    }
+
+    public List<String> getFieldOrder() {
+        return fieldOrder;
+    }
+
+    public void setFieldOrder(List<String> fieldOrder) {
+        this.fieldOrder = fieldOrder;
+    }
+
+    public List<String> getRequiredFields() {
+        return requiredFields;
+    }
+
+    public void setRequiredFields(List<String> requiredFields) {
+        this.requiredFields = requiredFields;
+    }
+
+    public String getRequiredPlaceholder() {
+        return requiredPlaceholder;
+    }
+
+    public void setRequiredPlaceholder(String requiredPlaceholder) {
+        this.requiredPlaceholder = requiredPlaceholder;
+    }
+
+    public String getExtraField() {
+        return extraField;
+    }
+
+    public void setExtraField(String extraField) {
+        this.extraField = extraField;
     }
 
     public String getAppName() {

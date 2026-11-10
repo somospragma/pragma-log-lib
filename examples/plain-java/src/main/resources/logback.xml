@@ -1,6 +1,6 @@
 <configuration>
   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-    <encoder class="co.com.pragma.logging.logback.PragmaJsonEncoder">
+    <encoder class="co.com.pragma.logging.logback.PragmaStructuredEncoder">
       <appName>plain-java-example</appName>
     </encoder>
   </appender>

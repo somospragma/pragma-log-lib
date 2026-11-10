@@ -3,7 +3,7 @@ package co.com.pragma.logging.spring;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.Context;
 import ch.qos.logback.core.ContextBase;
-import co.com.pragma.logging.logback.PragmaJsonEncoder;
+import co.com.pragma.logging.logback.PragmaStructuredEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import org.slf4j.LoggerFactory;
@@ -11,17 +11,18 @@ import org.springframework.boot.logging.structured.StructuredLogFormatter;
 import org.springframework.core.env.Environment;
 
 /**
- * Spring Boot structured logging format backed by {@link PragmaJsonEncoder}.
+ * Spring Boot structured logging format backed by {@link PragmaStructuredEncoder}: JSON, XML, CSV or a custom
+ * format.
  *
  * <p>Activated automatically by the starter through {@code logging.structured.format.console}
  * and {@code logging.structured.format.file}, so no {@code logback-spring.xml} is needed.
  */
 public class PragmaStructuredLogFormatter implements StructuredLogFormatter<ILoggingEvent> {
 
-    private final PragmaJsonEncoder encoder;
+    private final PragmaStructuredEncoder encoder;
 
     public PragmaStructuredLogFormatter(Environment environment) {
-        this.encoder = PragmaEncoderFactory.json(environment, logbackContext());
+        this.encoder = PragmaEncoderFactory.structured(environment, logbackContext());
     }
 
     @Override

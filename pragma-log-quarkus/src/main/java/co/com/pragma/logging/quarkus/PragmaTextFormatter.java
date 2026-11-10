@@ -12,7 +12,7 @@ import org.jboss.logmanager.ExtLogRecord;
 
 /**
  * Readable text formatter of the Quarkus extension for {@code pragma.log.format=plain} (FMT-01), with the same
- * masking as {@link PragmaJsonFormatter} and optional colors by level (FMT-05).
+ * masking as {@link PragmaStructuredFormatter} and optional colors by level (FMT-05).
  */
 public final class PragmaTextFormatter extends ExtFormatter {
 
@@ -49,7 +49,7 @@ public final class PragmaTextFormatter extends ExtFormatter {
         } catch (RuntimeException | LinkageError | StackOverflowError e) {
             alerts.maskingError(record.getLoggerName(), e);
             message = masking.sanitizer().text(record.getMessage());
-            fields = Map.of(PragmaJsonFormatter.ERROR_FIELD, e.getClass().getName());
+            fields = Map.of(PragmaStructuredFormatter.ERROR_FIELD, e.getClass().getName());
         }
         Throwable thrown = record.getThrown();
         String stacktrace = thrown != null && includeStacktrace

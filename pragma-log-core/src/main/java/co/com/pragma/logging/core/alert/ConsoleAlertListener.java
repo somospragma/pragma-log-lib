@@ -51,6 +51,15 @@ final class ConsoleAlertListener implements LogAlertListener {
         }
     }
 
+    @Override
+    public void onMissingFields(MissingFieldsAlert alert) {
+        if (due("required:" + alert.logger())) {
+            out.println("pragma-log WARN: a " + alert.level() + " log from " + alert.logger()
+                    + " does not have the required fields " + alert.fields() + ". They were written with the"
+                    + " placeholder.");
+        }
+    }
+
     private boolean due(String key) {
         long now = clock.getAsLong();
         if (lastWritten.size() > MAX_TRACKED) {

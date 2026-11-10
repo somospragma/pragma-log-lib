@@ -2,12 +2,16 @@ package co.com.pragma.logging.core.masking;
 
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
  * Marks a field (or record component) whose value must be masked whenever the owning object is logged.
+ *
+ * <p>On a class, it masks each field of the class the same way (MSK-01b); a field with its own annotation uses
+ * that one instead. Subclasses inherit it.
  *
  * <p>Works on any field type. Scalar values (strings, numbers, booleans, enums, dates, UUIDs) are masked
  * character by character; any other value is replaced by a fixed mask. Inherited fields are honoured.
@@ -19,7 +23,8 @@ import java.lang.annotation.Target;
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD, ElementType.METHOD, ElementType.RECORD_COMPONENT})
+@Inherited
+@Target({ElementType.FIELD, ElementType.METHOD, ElementType.RECORD_COMPONENT, ElementType.TYPE})
 public @interface MaskedLogField {
 
     /** Masking type. */

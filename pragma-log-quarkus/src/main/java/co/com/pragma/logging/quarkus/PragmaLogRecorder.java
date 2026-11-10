@@ -5,8 +5,12 @@ import co.com.pragma.logging.core.PragmaLogSettings;
 import co.com.pragma.logging.core.StandardFields;
 import co.com.pragma.logging.core.alert.LogAlertListener;
 import co.com.pragma.logging.core.alert.LogAlerts;
+import co.com.pragma.logging.core.format.LogEventFormatter;
 import co.com.pragma.logging.core.format.PlainTextFormat;
+import co.com.pragma.logging.core.format.StructuredFormat;
 import co.com.pragma.logging.core.format.TimestampFormat;
+import co.com.pragma.logging.core.layout.EventLayout;
+import co.com.pragma.logging.core.layout.StructuredEventWriter;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskingSettings;
@@ -30,7 +34,7 @@ import java.util.logging.Formatter;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.jboss.logging.Logger;
 
-/** Creates the {@link PragmaJsonFormatter} or {@link PragmaTextFormatter} at startup from {@link PragmaLogConfig}. */
+/** Creates the {@link PragmaStructuredFormatter} or {@link PragmaTextFormatter} at startup from {@link PragmaLogConfig}. */
 @Recorder
 public class PragmaLogRecorder {
 
@@ -48,7 +52,7 @@ public class PragmaLogRecorder {
      * first. If SLF4J is not initialized yet, the standard {@code slf4j.provider} property decides; if it already
      * bound to another provider (dev mode initializes it during the build), the provider is replaced, so the
      * application's loggers, created after this point, are pragma-log's. Loggers created earlier keep the old
-     * binding; their message arguments are still masked by {@link PragmaJsonFormatter}.
+     * binding; their message arguments are still masked by {@link PragmaStructuredFormatter}.
      */
     public void preferPragmaSlf4j() {
         if (System.getProperty(SLF4J_PROVIDER) == null) {
@@ -108,9 +112,32 @@ public class PragmaLogRecorder {
         if (!stacktrace.include()) {
             hidden.add(StandardFields.STACKTRACE);
         }
-        return new RuntimeValue<>(Optional.of(new PragmaJsonFormatter(masker, sanitizer, alerts, timestamp, hidden,
-                settings.renameFields(), staticFields(settings), stacktrace.include(), stacktrace.maxDepth(),
-                stacktrace.maxLength(), stacktrace.rootCauseFirst())));
+        StructuredEventWriter writer = new StructuredEventWriter(layout(settings, hidden), eventFormatter(settings),
+                alerts);
+        return new RuntimeValue<>(Optional.of(new PragmaStructuredFormatter(masker, sanitizer, alerts, writer,
+                timestamp, staticFields(settings), stacktrace.include(), stacktrace.maxDepth(), stacktrace.maxLength(),
+                stacktrace.rootCauseFirst())));
+    }
+
+    private static EventLayout layout(PragmaLogConfig settings, Set<String> hidden) {
+        try {
+            return new EventLayout(hidden, settings.renameFields(), settings.fieldOrder().orElse(List.of()),
+                    settings.requiredFields().orElse(List.of()), settings.requiredPlaceholder(),
+                    settings.extraField().orElse(null));
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Invalid pragma.log configuration: " + e.getMessage(), e);
+        }
+    }
+
+    private static LogEventFormatter eventFormatter(PragmaLogConfig settings) {
+        try {
+            PragmaLogConfig.Csv csv = settings.csv();
+            return StructuredFormat.create(StructuredFormat.type(settings.format().name()), settings.json().pretty(),
+                    csv.columns().orElse(List.of()), csv.delimiter(), csv.header(),
+                    settings.customFormatter().orElse(null), Thread.currentThread().getContextClassLoader());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Invalid pragma.log configuration: " + e.getMessage(), e);
+        }
     }
 
     private static TextSanitizer sanitizer(PragmaLogConfig settings) {

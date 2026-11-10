@@ -22,8 +22,8 @@
 |---|---|---|---|---|---|
 | FMT-01 | Formato CONSOLE legible (`timestamp level [thread] logger : msg`) | S | ✅ A/B | MUST | Hoy sale `ts [LEVEL] msg k=v`, no el layout de la spec. **Hecho en v2 (2026-11-02):** `format: plain` con el layout de la spec y el mismo masking que el JSON, en Logback (`PragmaTextEncoder`), Spring y Quarkus. |
 | FMT-02 | JSON compacto, una línea por evento | S | 🟡 A/B | MUST | A convierte todos los valores a String (pierde tipos); B no formatea timestamp. |
-| FMT-03 | JSON pretty (`prettyPrint`) | S | ✅ | MUST | Rompe los log shippers (multilínea); solo útil en local. **v1 (2026-11-09):** entra por decisión de producto. |
-| FMT-04 | Formatos custom (XML, CSV…) vía `LogFormatter` | S | 🟡 | MUST | Clase abstracta existe; no hay registro por config. **v1 (2026-11-09):** entra por decisión de producto. |
+| FMT-03 | JSON pretty (`prettyPrint`) | S | ✅ | MUST | Rompe los log shippers (multilínea); solo útil en local. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `json.pretty`. |
+| FMT-04 | Formatos custom (XML, CSV…) vía `LogFormatter` | S | 🟡 | MUST | Clase abstracta existe; no hay registro por config. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `format: xml|csv|custom`; `LogEventFormatter` para formatos propios. |
 | FMT-05 | Colores ANSI por nivel (nombre o hex) | S | 🟡 | SHOULD | Solo nombres `AnsiColor`, hex no soportado; colorea la línea completa. **Hecho en v2 (2026-11-02):** color solo en el nivel (configurable por nombre o hex), timestamp tenue y logger en cian; `auto` respeta terminal y `NO_COLOR`; los archivos nunca llevan color. |
 | FMT-06 | Formato de timestamp configurable (default ISO-8601 en JSON) | S | 🟡 | MUST | Zona horaria no configurable; default actual no es ISO. **Hecho en v2 (2026-11-02):** `timestamp.pattern` (patrón o constante `[ISO_INSTANT]`) y `timestamp.zone` en JSON y texto; default ISO-8601 con offset en JSON. |
 | FMT-07 | Seleccionar formato solo por config, sin tocar XML | S | 🟡 A | MUST | En A funciona leyendo `formatter`. |
@@ -37,11 +37,11 @@
 | FLD-01 | Campos estándar: timestamp, level, thread, logger/className, appName, message, stacktrace | S | 🟡 | MUST | `appName` y `className` nunca se inyectan (los encoders usan `logger`). |
 | FLD-02 | Ocultar campos (`hideFields`) | S | ✅ A / 🟡 B | MUST | B no deja ocultar timestamp/level/message. |
 | FLD-03 | Renombrar campos (`renameFields`) | S | ✅ | MUST | Clave para mapear a esquemas de ELK/Datadog. |
-| FLD-04 | Ordenar campos (`fieldsOrder`) | S | ✅ | MUST | Poco valor en JSON; útil en CONSOLE. **v1 (2026-11-09):** entra por decisión de producto. |
+| FLD-04 | Ordenar campos (`fieldsOrder`) | S | ✅ | MUST | Poco valor en JSON; útil en CONSOLE. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `field-order`, en todos los formatos. |
 | FLD-05 | Campos adicionales (`additionalFields`) con source `fixed` | S | 🟡 | SHOULD | Valores fijos: env, team, version. |
-| FLD-05b | `additionalFields` con `path` JSONPath (`$.request.error`) para anidar | S | 🟡 B | MUST | Solo B en JsonFormatter. **v1 (2026-11-09):** entra por decisión de producto. |
-| FLD-06 | Objeto `extra` para campos no mapeados | S | — | MUST | Mejor campos en raíz o bajo un prefijo fijo. **v1 (2026-11-09):** entra por decisión de producto. |
-| FLD-07 | Campos obligatorios (`requiredFields`) con validación | S | ✅ | MUST | Hoy lanza excepción: en PragmaLogger llega a la app. Nunca debe romper. **v1 (2026-11-09):** entra por decisión de producto. |
+| FLD-05b | `additionalFields` con `path` JSONPath (`$.request.error`) para anidar | S | 🟡 B | MUST | Solo B en JsonFormatter. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** un nombre `$.a.b` en `rename-fields` o `extra-field` anida el campo. |
+| FLD-06 | Objeto `extra` para campos no mapeados | S | — | MUST | Mejor campos en raíz o bajo un prefijo fijo. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `extra-field` agrupa MDC y key-values, salvo los nombrados en la configuración. |
+| FLD-07 | Campos obligatorios (`requiredFields`) con validación | S | ✅ | MUST | Hoy lanza excepción: en PragmaLogger llega a la app. Nunca debe romper. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `required-fields`; si falta, sale con `required-placeholder` y alerta `onMissingFields`. Nunca rompe. |
 | FLD-08 | Truncar textos largos (`maxSizeText`) | S | ✅ | SHOULD | A convierte objetos a String al truncar; truncar solo Strings. **Hecho en v2 (2026-11-02):** `max-field-length` trunca el mensaje y los valores de texto (también dentro de objetos) después de enmascarar; números y stack trace no. |
 | FLD-09 | Incluir MDC automáticamente | S | ✅ A | MUST | En los encoders de A. |
 | FLD-10 | Argumentos estructurados (`log.info("msg", Map)`, `kv(...)`, objetos en `{}`) como campos | S | 🟡 A | MUST | A los agrega como `arg0..N`; el mensaje con `{}` usa `toString()` sin masking. |
@@ -62,7 +62,7 @@
 | ID | Funcionalidad | Origen | Estado actual | v1 | Notas |
 |---|---|---|---|---|---|
 | MSK-01 | `@MaskedLogField(type, length, strategy)` en campos | S | 🟡 | MUST | A: solo String, en otros tipos fuga vía `toString()`. B: ignora no-String. Ninguna lee campos heredados. |
-| MSK-01b | `@MaskedLogField` a nivel de clase | S | 🟡 A | MUST | A enmascara el `toString()` entero; B lo ignora. **v1 (2026-11-09):** entra por decisión de producto. |
+| MSK-01b | `@MaskedLogField` a nivel de clase | S | 🟡 A | MUST | A enmascara el `toString()` entero; B lo ignora. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** en una clase enmascara cada campo; la anotación del campo manda. |
 | MSK-02 | Config global: `enabled`, `character`, `defaultType`, `defaultLength` | S | 🟡 | MUST | `defaultType` es config muerta; null en `character`/`defaultLength` causa NPE. |
 | MSK-03 | Estrategias built-in: PREFIX, SUFFIX, MIDDLE, FULL, HIDDEN | S | ✅ | MUST | MIDDLE acorta la cadena; HIDDEN difiere entre A (`""`) y B (`null`). |
 | MSK-04 | Estrategias custom registradas por nombre (`masking.strategies`) | S | ✅ | SHOULD | En A, las built-in pisan a las del usuario; usar TCCL en vez de `Class.forName`. |

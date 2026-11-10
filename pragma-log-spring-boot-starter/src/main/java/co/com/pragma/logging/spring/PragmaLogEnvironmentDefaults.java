@@ -26,9 +26,9 @@ final class PragmaLogEnvironmentDefaults {
         if (!enabled) {
             return;
         }
-        boolean json = format == PragmaLogProperties.Format.JSON;
-        String console = (json ? PragmaStructuredLogFormatter.class : PragmaPlainConsoleFormatter.class).getName();
-        String file = (json ? PragmaStructuredLogFormatter.class : PragmaPlainFileFormatter.class).getName();
+        boolean plain = format == PragmaLogProperties.Format.PLAIN;
+        String console = (plain ? PragmaPlainConsoleFormatter.class : PragmaStructuredLogFormatter.class).getName();
+        String file = (plain ? PragmaPlainFileFormatter.class : PragmaStructuredLogFormatter.class).getName();
         environment.getPropertySources().addLast(new MapPropertySource(PROPERTY_SOURCE_NAME, Map.of(
                 "logging.structured.format.console", console,
                 "logging.structured.format.file", file)));

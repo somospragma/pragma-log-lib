@@ -36,6 +36,10 @@ pragma:
     hide-fields: [thread]
     rename-fields:
       level: severity
+      requestId: $.http.request.id     # un nombre $.a.b anida el campo
+    field-order: [timestamp, level, message]
+    required-fields: [requestId]       # si falta, sale "unknown" y se avisa
+    extra-field: extra                 # agrupa MDC y key-values en "extra"
     masking:
       fields: [password, documentId]   # reemplaza la lista por defecto
       patterns: [CARD, JWT]            # busca y enmascara en el texto (ver "Red de seguridad")
@@ -51,6 +55,7 @@ pragma:
     context-keys: [userId, tenantId]   # WebFlux: valores del Reactor Context que salen en los logs
     timestamp:
       zone: America/Bogota             # pattern: [ISO_INSTANT] o yyyy-MM-dd HH:mm:ss.SSS
+    # format: xml     # json (default), xml, csv, custom o plain (ver "Formatos y distribución de campos")
     # format: plain   # texto legible con el mismo masking, para local (ver "Texto plano y colores")
     # enabled: false  # apaga la librería
 ```
@@ -112,7 +117,7 @@ dependencies {
 ```xml
 <configuration>
   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-    <encoder class="co.com.pragma.logging.logback.PragmaJsonEncoder">
+    <encoder class="co.com.pragma.logging.logback.PragmaStructuredEncoder">
       <appName>my-service</appName>
     </encoder>
   </appender>
@@ -142,6 +147,17 @@ record Customer(
         String name,
         @MaskedLogField(type = MaskType.MIDDLE, length = 4) String cardNumber,
         @MaskedLogField(type = MaskType.HIDDEN) String cvv) {}
+```
+
+**En una clase**, la anotación enmascara cada uno de sus campos de la misma forma; un campo con su propia anotación usa la suya. Las subclases la heredan:
+
+```java
+@MaskedLogField(type = MaskType.MIDDLE, length = 2)
+class ContactData {
+    String phone;                                   // MIDDLE, como la clase
+    String email;                                   // MIDDLE, como la clase
+    @MaskedLogField(type = MaskType.HIDDEN) String note;   // el campo manda
+}
 ```
 
 **Por nombre**, sin anotación (clases de terceros, mapas, MDC, key-values, headers). Por defecto: `password`, `secret`, `token`, `accessToken`, `apiKey`, `authToken`, `authorization`, `cookie`, `cardNumber`, `cvv`, entre otros. Se ignoran mayúsculas y separadores: `access_token` = `accessToken`. En nombres con puntos cuenta el último tramo, sin el prefijo `x-`: `http.header.x-api-key` se enmascara como `apiKey`.
@@ -189,7 +205,7 @@ Cada patrón recorre todos los logs, así que mantén la lista corta. Está apag
 
 - `max-field-length`: corta el mensaje y cada valor de texto largo con `...[truncated N chars]`. Primero se enmascara y después se corta, así ningún pedazo de un secreto queda visible. El stack trace tiene su propio límite.
 - `alerts.max-log-size`: cuando un log supera ese tamaño (bytes UTF-8 ya codificado), se avisa. El log se escribe completo.
-- Avisos: por defecto una línea en la salida de error, máximo una por minuto por logger (`alerts.console: false` la apaga). Para llevarlos a una métrica o una notificación, implementa `LogAlertListener` (`onLargeLog` y `onMaskingError`, que también avisa cuando un log no se pudo enmascarar). Regístralo como bean de Spring, en `alerts.listeners` con el nombre de la clase, o con `LogAlerts.register(...)`. Si hay appender de consola y de archivo, cada uno avisa por su lado.
+- Avisos: por defecto una línea en la salida de error, máximo una por minuto por logger (`alerts.console: false` la apaga). Para llevarlos a una métrica o una notificación, implementa `LogAlertListener` (`onLargeLog`, `onMaskingError`, que avisa cuando un log no se pudo enmascarar, y `onMissingFields`, cuando a un log le faltan campos obligatorios). Regístralo como bean de Spring, en `alerts.listeners` con el nombre de la clase, o con `LogAlerts.register(...)`. Si hay appender de consola y de archivo, cada uno avisa por su lado.
 
 En `logback.xml`: `<maskPattern>CARD</maskPattern>` (se puede repetir), `<maxFieldLength>`, `<maxLogSize>` (bytes), `<alertListener>` (se puede repetir) y `<alertConsole>`. Un patrón o un listener inválidos detienen el arranque en Spring y Quarkus.
 
@@ -216,6 +232,31 @@ Cuando se loguea una excepción, además del `stacktrace` sale un resumen fácil
 ```json
 "error":{"type":"java.lang.IllegalStateException","message":"Gateway timeout","rootCause":"java.net.SocketTimeoutException: Read timed out"}
 ```
+
+## Formatos y distribución de campos
+
+`format` elige la salida; todas pasan por el mismo masking y la misma distribución de campos:
+
+| `format` | Salida |
+|---|---|
+| `json` (default) | Un objeto por línea. Con `json.pretty: true`, indentado en varias líneas (solo para leer en local: los recolectores de logs esperan un evento por línea). |
+| `xml` | Un `<event>` por línea: `<event><timestamp>…</timestamp><level>INFO</level>…</event>`. Los objetos son elementos anidados. |
+| `csv` | Columnas fijas (`csv.columns`, por defecto `timestamp, level, logger, thread, message`), separador `csv.delimiter` y encabezado opcional (`csv.header`, solo en `logback.xml` y Quarkus). Los objetos van como JSON y los saltos de línea como `\n`. Un campo anidado es una columna con puntos: `http.request.id`. |
+| `custom` | Tu clase en `custom-formatter`: implementa `LogEventFormatter` (recibe los campos ya enmascarados y ordenados, devuelve el texto). Si falla, ese evento sale en JSON. |
+| `plain` | Texto legible para local (ver la sección siguiente). |
+
+Distribución de campos, igual en todos los formatos:
+
+- **Ordenar:** `field-order` pone esos campos primero, en ese orden (por nombre original o renombrado); el resto conserva su orden.
+- **Anidar:** un nombre nuevo que empieza con `$.` anida el campo: `rename-fields: {requestId: $.http.request.id}` → `"http":{"request":{"id":"req-7"}}`. También sirve en `extra-field`.
+- **Obligatorios:** `required-fields` lista los campos que todo log debe tener. Si falta uno, sale con `required-placeholder` (`unknown` por defecto) y se avisa a los listeners de alertas (`onMissingFields`). El log nunca se pierde.
+- **Objeto `extra`:** con `extra-field: extra`, el MDC y los key-values van dentro de `extra`, salvo los que nombres en `field-order`, `rename-fields` o `required-fields`, que quedan en la raíz. Los campos estándar y fijos siguen en la raíz.
+
+```json
+{"level":"INFO","message":"Order paid","timestamp":"…","http":{"request":{"id":"req-7"}},"extra":{"orderId":"o-1","amount":10},"app":"orders-service","userId":"unknown"}
+```
+
+En `logback.xml` usa `PragmaStructuredEncoder` (`PragmaJsonEncoder` sigue funcionando y escribe JSON) con `format`, `pretty`, `csvColumns`, `csvDelimiter`, `csvHeader`, `customFormatter`, `fieldOrder`, `requiredFields`, `requiredPlaceholder` y `extraField`.
 
 ## Texto plano y colores (para local)
 

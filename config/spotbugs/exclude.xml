@@ -23,4 +23,9 @@
         <Class name="co.com.pragma.logging.quarkus.slf4j.PragmaSlf4jLogger"/>
         <Bug pattern="SE_TRANSIENT_FIELD_NOT_RESTORED"/>
     </Match>
+    <!-- EventLayout is immutable (every collection is copied with copyOf): sharing the default instance is safe. -->
+    <Match>
+        <Class name="co.com.pragma.logging.core.layout.EventLayout"/>
+        <Bug pattern="MS_EXPOSE_REP"/>
+    </Match>
 </FindBugsFilter>

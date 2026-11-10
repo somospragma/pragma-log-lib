@@ -1,6 +1,7 @@
 package co.com.pragma.logging.quarkus.deployment;
 
 import co.com.pragma.logging.core.alert.LogAlertListener;
+import co.com.pragma.logging.core.format.LogEventFormatter;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskedLogField;
 import co.com.pragma.logging.core.masking.MaskingStrategy;
@@ -37,6 +38,7 @@ class PragmaLogProcessor {
     private static final DotName MASKED_LOG_FIELD = DotName.createSimple(MaskedLogField.class);
     private static final DotName ALERT_LISTENER = DotName.createSimple(LogAlertListener.class);
     private static final DotName MASKING_STRATEGY = DotName.createSimple(MaskingStrategy.class);
+    private static final DotName EVENT_FORMATTER = DotName.createSimple(LogEventFormatter.class);
 
     @BuildStep
     FeatureBuildItem feature() {
@@ -97,13 +99,14 @@ class PragmaLogProcessor {
     }
 
     /**
-     * Native mode: alert listeners and mask strategies are created from their class names in the configuration.
+     * Native mode: alert listeners, mask strategies and custom formats are created from their class names in the
+     * configuration.
      * Implementations in the application index are registered so that works without {@code @RegisterForReflection}.
      */
     @BuildStep
     ReflectiveClassBuildItem pluggableClasses(CombinedIndexBuildItem index) {
         Set<String> classes = new TreeSet<>();
-        for (DotName type : Set.of(ALERT_LISTENER, MASKING_STRATEGY)) {
+        for (DotName type : Set.of(ALERT_LISTENER, MASKING_STRATEGY, EVENT_FORMATTER)) {
             index.getIndex().getAllKnownImplementations(type).stream()
                     .filter(info -> !Modifier.isAbstract(info.flags()))
                     .map(ClassInfo::name)

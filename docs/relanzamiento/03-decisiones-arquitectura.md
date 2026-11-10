@@ -25,7 +25,9 @@
 
 ---
 
-## ADR-01 — JSON sobre logstash-logback-encoder · Aceptada
+## ADR-01 — JSON sobre logstash-logback-encoder · Reemplazada (2026-11-10)
+
+> **Actualización (2026-11-10).** Con los formatos XML, CSV y propios, el orden de campos, los campos anidados, los obligatorios y el objeto `extra` (FMT-03/04, FLD-04..07), la salida dejó de poder armarse con los providers de logstash: dependen de que cada provider escriba directo al generador JSON. El core tiene ahora un modelo común del evento (`EventFields` → `EventLayout` → `LogEventFormatter`, en `StructuredEventWriter`) que usan el encoder de Logback (`PragmaStructuredEncoder`, sobre `EncoderBase`) y el formatter de Quarkus. Así los dos frameworks escriben exactamente lo mismo. De logstash-logback-encoder solo queda `ShortenedThrowableConverter` para el stack trace acotado. `PragmaJsonEncoder` se mantiene como alias para los `logback.xml` existentes.
 
 **Contexto.** El código actual reimplementa serialización JSON, stacktraces, MDC y argumentos. Eso es lo que más código consumió y lo que menos valor diferencial aporta. `logstash-logback-encoder` es el estándar de facto en Logback: providers componibles, MDC, key-values de SLF4J 2, stacktraces recortables, nombres de campo configurables y compatibilidad con async appenders.
 

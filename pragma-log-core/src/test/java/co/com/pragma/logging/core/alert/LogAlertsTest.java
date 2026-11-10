@@ -26,6 +26,22 @@ class LogAlertsTest {
         public void onMaskingError(MaskingErrorAlert alert) {
             alerts.add(alert);
         }
+
+        @Override
+        public void onMissingFields(MissingFieldsAlert alert) {
+            alerts.add(alert);
+        }
+    }
+
+    @Test
+    void missingRequiredFieldsAreReportedOnlyWhenThereAreSome() {
+        Recorder recorder = new Recorder();
+        LogAlerts alerts = new LogAlerts(0, false, List.of(recorder));
+
+        alerts.missingFields("a.B", "INFO", List.of());
+        alerts.missingFields("a.B", "WARN", List.of("requestId"));
+
+        assertThat(recorder.alerts).containsExactly(new MissingFieldsAlert("a.B", "WARN", List.of("requestId")));
     }
 
     @Test
@@ -95,6 +111,19 @@ class LogAlertsTest {
 
         assertThat(out.toString(StandardCharsets.UTF_8).lines()).hasSize(3)
                 .allMatch(line -> line.startsWith("pragma-log WARN: a INFO log of 99 bytes"));
+    }
+
+    @Test
+    void consoleListenerReportsMissingRequiredFields() {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ConsoleAlertListener console = new ConsoleAlertListener(new PrintStream(out, true, StandardCharsets.UTF_8),
+                () -> 0L, new java.util.HashMap<>());
+
+        console.onMissingFields(new MissingFieldsAlert("a.B", "WARN", List.of("requestId")));
+        console.onMissingFields(new MissingFieldsAlert("a.B", "WARN", List.of("requestId")));
+
+        assertThat(out.toString(StandardCharsets.UTF_8).lines()).singleElement().asString()
+                .contains("WARN log from a.B does not have the required fields [requestId]");
     }
 
     @Test

@@ -22,7 +22,7 @@ import org.slf4j.event.KeyValuePair;
 
 /**
  * Logback encoder that writes a readable line per event for local development (FMT-01), with the same
- * masking as {@link PragmaJsonEncoder} (ADR-07) and optional colors by level (FMT-05).
+ * masking as {@link PragmaStructuredEncoder} (ADR-07) and optional colors by level (FMT-05).
  *
  * <pre>{@code
  * <encoder class="co.com.pragma.logging.logback.PragmaTextEncoder">
@@ -44,8 +44,8 @@ public class PragmaTextEncoder extends EncoderBase<ILoggingEvent> {
     private String timestampPattern = TimestampFormat.PLAIN_DEFAULT;
     private String timeZone;
     private boolean includeStacktrace = true;
-    private int stacktraceMaxDepth = PragmaJsonEncoder.DEFAULT_STACKTRACE_MAX_DEPTH;
-    private int stacktraceMaxLength = PragmaJsonEncoder.DEFAULT_STACKTRACE_MAX_LENGTH;
+    private int stacktraceMaxDepth = PragmaStructuredEncoder.DEFAULT_STACKTRACE_MAX_DEPTH;
+    private int stacktraceMaxLength = PragmaStructuredEncoder.DEFAULT_STACKTRACE_MAX_LENGTH;
     private boolean stacktraceRootCauseFirst;
 
     private final List<String> configurationErrors = new ArrayList<>();
