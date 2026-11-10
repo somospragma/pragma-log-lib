@@ -240,24 +240,33 @@ jobs:
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
         with:
           cache-read-only: true
-      - name: Check secrets
+      - name: Check secrets and variables
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          MAVEN_GROUP_ID: ${{ vars.MAVEN_GROUP_ID }}
+          POM_LICENSE_NAME: ${{ vars.POM_LICENSE_NAME }}
+          POM_LICENSE_URL: ${{ vars.POM_LICENSE_URL }}
         run: |
           missing=()
-          for name in MAVEN_CENTRAL_USERNAME MAVEN_CENTRAL_PASSWORD SIGNING_KEY SIGNING_KEY_PASSWORD; do
+          for name in MAVEN_CENTRAL_USERNAME MAVEN_CENTRAL_PASSWORD SIGNING_KEY SIGNING_KEY_PASSWORD \
+              MAVEN_GROUP_ID POM_LICENSE_NAME POM_LICENSE_URL; do
             value="${!name}"
             if [[ -z "$value" || "$value" == "REPLACE_ME" ]]; then missing+=("$name"); fi
           done
           if (( ${#missing[@]} )); then
-            echo "::error::Fill these secrets of the maven-central environment: ${missing[*]}"
+            echo "::error::Fill these secrets or variables of the maven-central environment: ${missing[*]}"
             exit 1
           fi
-      - run: ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache -Pversion="${GITHUB_REF_NAME#v}"
+      - run: >
+          ./gradlew publishAndReleaseToMavenCentral --no-configuration-cache
+          -Pversion="${GITHUB_REF_NAME#v}" -Pgroup="$MAVEN_GROUP_ID"
         env:
+          MAVEN_GROUP_ID: ${{ vars.MAVEN_GROUP_ID }}
+          ORG_GRADLE_PROJECT_pomLicenseName: ${{ vars.POM_LICENSE_NAME }}
+          ORG_GRADLE_PROJECT_pomLicenseUrl: ${{ vars.POM_LICENSE_URL }}
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
           ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}

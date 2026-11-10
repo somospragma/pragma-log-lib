@@ -15,7 +15,16 @@ mavenPublishing {
         description = provider { project.description ?: "Pragma structured logging library" }
         url = "https://github.com/somospragma/pragma-log-lib"
         inceptionYear = "2025"
-        // TODO(ADR-04): license pending decision; Maven Central requires one before the first release.
+        // License from the maven-central environment (POM_LICENSE_NAME, POM_LICENSE_URL): Maven Central requires one.
+        val licenseName = providers.gradleProperty("pomLicenseName")
+        if (licenseName.isPresent) {
+            licenses {
+                license {
+                    name = licenseName
+                    url = providers.gradleProperty("pomLicenseUrl")
+                }
+            }
+        }
         scm {
             url = "https://github.com/somospragma/pragma-log-lib"
             connection = "scm:git:git://github.com/somospragma/pragma-log-lib.git"

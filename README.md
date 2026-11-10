@@ -370,6 +370,14 @@ En Java puro, usa `PragmaTextEncoder` en `logback.xml`. Acepta las mismas propie
 | `examples/quarkus` | App de ejemplo Quarkus con tests `@QuarkusTest` (no se publica). |
 | `benchmarks` | Benchmarks JMH (no se publica). Ver [rendimiento](docs/relanzamiento/04-rendimiento.md). |
 
+## Integración con ELK, Datadog y OpenTelemetry
+
+[docs/mapeo-campos.md](docs/mapeo-campos.md) tiene la tabla de equivalencias y la configuración lista para que los logs lleguen con los nombres de Elastic (ECS), Datadog u OpenTelemetry.
+
+## Versiones
+
+Los cambios de cada versión están en [CHANGELOG.md](CHANGELOG.md). Se sigue versionado semántico: MAJOR cuando hay que tocar la app, MINOR para funcionalidad nueva compatible y PATCH para correcciones.
+
 ## Desarrollo
 
 Requiere JDK 17 o superior (JDK 21+ para correr Error Prone).
@@ -392,7 +400,18 @@ Requiere JDK 17 o superior (JDK 21+ para correr Error Prone).
 | **Security** | Dependencias con OSV-Scanner (lo que cada módulo publica) · Secretos con gitleaks (todo el historial) · SAST con SpotBugs + FindSecBugs | ver abajo |
 | **Build** | Jars, sources, javadoc y POMs de los 7 módulos, como artefacto `maven-artifacts` | `./gradlew publishToMavenLocal -Dmaven.repo.local=$PWD/build/m2` |
 | **Approval** | Solo con tags `v*`: abre un issue y espera que alguien de la variable `RELEASE_APPROVERS` comente `approve` (o `deny`); cerrar el issue también rechaza. Expira en 2 horas | — |
-| **Publish** | En el environment `maven-central` (solo admite tags `v*` y guarda los secretos de Sonatype y GPG): valida que los secretos estén cargados y publica en Maven Central | — |
+| **Publish** | En el environment `maven-central` (solo admite tags `v*`): valida que los secretos y variables estén cargados y publica en Maven Central | — |
+
+Para publicar, el environment `maven-central` (Settings → Environments) necesita:
+
+| Tipo | Nombre | Qué va |
+|---|---|---|
+| Secreto | `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` | Token de usuario del portal de Sonatype (Central Portal → Generate User Token) |
+| Secreto | `SIGNING_KEY` / `SIGNING_KEY_PASSWORD` | Llave GPG privada en ASCII armor (`gpg --armor --export-secret-keys <id>`) y su contraseña |
+| Variable | `MAVEN_GROUP_ID` | El namespace verificado en Maven Central, p. ej. `com.pragma.logging` |
+| Variable | `POM_LICENSE_NAME` / `POM_LICENSE_URL` | Licencia del POM, p. ej. `Apache License 2.0` y su URL |
+
+Los aprobadores del release están en la variable de repositorio `RELEASE_APPROVERS`. Para publicar: actualiza [CHANGELOG.md](CHANGELOG.md), crea el tag (`git tag v1.0.0 && git push origin v1.0.0`) y comenta `approve` en el issue que abre el pipeline.
 
 Security en local (con Docker):
 

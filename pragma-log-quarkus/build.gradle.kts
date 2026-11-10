@@ -15,7 +15,7 @@ quarkusExtension {
     // formatter can mask them (ADR-11).
     excludedArtifacts = listOf("org.jboss.slf4j:slf4j-jboss-logmanager")
     // Loaded with JBoss LogManager and slf4j-api, which are parent-first too.
-    parentFirstArtifacts = listOf("co.com.pragma.logging:pragma-log-quarkus-slf4j")
+    parentFirstArtifacts = listOf("${project.group}:pragma-log-quarkus-slf4j") // follows -Pgroup at release
 }
 
 // The Quarkus extension plugin is not ready for Gradle 9: its validation resolves another project's

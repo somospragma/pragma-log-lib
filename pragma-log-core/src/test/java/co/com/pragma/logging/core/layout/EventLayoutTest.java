@@ -65,6 +65,21 @@ class EventLayoutTest {
     }
 
     @Test
+    @DisplayName("a nested name can go inside an object field, e.g. the stack trace inside error (ECS)")
+    @SuppressWarnings("unchecked")
+    void nestedIntoObject() {
+        Map<String, Object> error = new java.util.LinkedHashMap<>(Map.of("type", "java.lang.IllegalStateException"));
+        EventLayout layout = new EventLayout(Set.of(), Map.of("stacktrace", "$.error.stack_trace"), List.of(),
+                List.of(), null, null);
+
+        Map<String, Object> fields = layout.arrange(new EventFields().standard("error", error)
+                .standard("stacktrace", "at A")).fields();
+
+        assertThat((Map<String, Object>) fields.get("error")).containsEntry("type", "java.lang.IllegalStateException")
+                .containsEntry("stack_trace", "at A");
+    }
+
+    @Test
     @DisplayName("ordered fields come first, by original or new name; the rest keep their order (FLD-04)")
     void order() {
         EventLayout layout = new EventLayout(Set.of(), Map.of("message", "msg"), List.of("msg", "app", "missing",

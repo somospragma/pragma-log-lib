@@ -155,14 +155,14 @@
 
 | ID | Funcionalidad | Origen | Estado actual | v1 | Notas |
 |---|---|---|---|---|---|
-| OBS-01 | Mapeo de campos a OTel / ELK / Datadog documentado | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. |
+| OBS-01 | Mapeo de campos a OTel / ELK / Datadog documentado | S | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `docs/mapeo-campos.md` con ECS, Datadog y OpenTelemetry; el mapeo ECS está probado. |
 | OBS-02 | Validación real contra un stack (p. ej. ELK en docker) | S | — | LATER | — |
 | DOC-01 | Manual de usuario y guía de contribución | S | 🟡 | MUST | Desactualizados respecto al código. |
 | DOC-02 | Ejemplos por framework (proyectos de prueba) | S | 🟡 A | MUST | Los demos actuales no prueban lo que dicen (password en claro). |
 | DOC-03 | Sitio Docusaurus / GitHub Pages | S | — | LATER | — |
 | PUB-01 | Publicar en repo Maven | S | ⚪ | MUST | `maven-publish` aplicado, sin repo destino. |
 | PUB-02 | CI con build, tests y cobertura | N | — | MUST | — Hecho en v2 (2026-11-09): `pipeline.yml` con Quality (Error Prone, Java 17, tests + cobertura mínima, PMD, nativo), Security (OSV-Scanner, gitleaks, SpotBugs + FindSecBugs), Build y publicación con aprobación. |
-| PUB-03 | Versionado semántico y changelog | N | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. |
+| PUB-03 | Versionado semántico y changelog | N | — | MUST | — **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `CHANGELOG.md` (Keep a Changelog) y política de versionado semántico. |
 | PUB-04 | BOM / version catalog de dependencias | N | 🔴 | MUST | Hoy: Spring 3.3.1 vs 6.1.3/3.2.1, Jackson 2.17 vs 2.15, JUnit 5.10 vs 5.8, Mockito `4.+`. |
 
 ---

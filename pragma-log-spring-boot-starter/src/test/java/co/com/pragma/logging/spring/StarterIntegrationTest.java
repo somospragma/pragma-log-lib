@@ -321,6 +321,34 @@ class StarterIntegrationTest {
     }
 
     @Test
+    @DisplayName("the ECS mapping of docs/mapeo-campos.md works as written")
+    void ecsMapping(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.rename-fields.timestamp=@timestamp",
+                "pragma.log.rename-fields.level=log.level", "pragma.log.rename-fields.app=service.name",
+                "pragma.log.rename-fields.stacktrace=$.error.stack_trace",
+                "pragma.log.rename-fields.http.method=http.request.method",
+                "pragma.log.rename-fields.http.path=url.path", "pragma.log.rename-fields.requestId=http.request.id")) {
+            get(context, "req-ecs");
+            int port = context.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
+            HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/boom"))
+                    .build(), HttpResponse.BodyHandlers.ofString());
+
+            JsonNode login = jsonLine(output, "Login ");
+            assertThat(login.has("@timestamp")).isTrue();
+            assertThat(login.get("log.level").asString()).isEqualTo("INFO");
+            assertThat(login.get("service.name").asString()).isEqualTo("orders-service");
+            assertThat(login.get("http.request.method").asString()).isEqualTo("GET");
+            assertThat(login.get("url.path").asString()).isEqualTo("/login");
+            assertThat(login.get("http.request.id").asString()).isEqualTo("req-ecs");
+            String failure = await(output::getOut, text -> text.contains("\"stack_trace\""));
+            JsonNode error = failure.lines().filter(line -> line.contains("\"stack_trace\"")).findFirst()
+                    .map(line -> JsonMapper.shared().readTree(line)).orElseThrow().get("error");
+            assertThat(error.get("type").asString()).isEqualTo("java.lang.IllegalStateException");
+            assertThat(error.get("stack_trace").asString()).startsWith("java.lang.IllegalStateException: boom");
+        }
+    }
+
+    @Test
     @DisplayName("changed properties apply without restarting through PragmaLogReloader (CFG-06)")
     void hotReload(CapturedOutput output) throws Exception {
         try (ConfigurableApplicationContext context = start("pragma.log.fields.env=before")) {
