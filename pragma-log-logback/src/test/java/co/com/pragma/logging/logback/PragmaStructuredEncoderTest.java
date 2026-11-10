@@ -6,6 +6,7 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.LoggingEvent;
+import co.com.pragma.logging.core.enrich.LogEnricher;
 import co.com.pragma.logging.core.format.LogEventFormatter;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskedLogField;
@@ -36,6 +37,16 @@ class PragmaStructuredEncoderTest {
         @Override
         public String format(Map<String, Object> event) {
             return event.get("level") + "|" + event.get("message") + "\n";
+        }
+    }
+
+    /** Adds a region and a field with a sensitive name, which must come out masked. */
+    public static class TenantEnricher implements LogEnricher {
+        @Override
+        public void enrich(EnrichedEvent event) {
+            event.put("region", "co-bog");
+            event.put("apiKey", "k-123456");
+            event.put("requestId", "from-enricher");
         }
     }
 
@@ -145,6 +156,22 @@ class PragmaStructuredEncoderTest {
         assertThat(json.get("extra").get("orderId").asString()).isEqualTo("o-1");
         assertThat(json.get("extra").get("amount").asInt()).isEqualTo(10);
         assertThat(json.get("userId").asString()).isEqualTo("n/a");
+    }
+
+    @Test
+    @DisplayName("enrichers add masked fields to every format; MDC and key-values win (ENR-07)")
+    void enrichers() {
+        start(e -> {
+            e.addEnricher(TenantEnricher.class.getName());
+            e.addEnricher("com.acme.Missing");
+        });
+
+        JsonNode json = JsonMapper.shared().readTree(encode(event("Hello")));
+
+        assertThat(json.get("region").asString()).isEqualTo("co-bog");
+        assertThat(json.get("apiKey").asString()).matches("\\*+");
+        assertThat(json.get("requestId").asString()).isEqualTo("r-1");
+        assertThat(encoder.getConfigurationErrors()).singleElement().asString().contains("com.acme.Missing");
     }
 
     @Test

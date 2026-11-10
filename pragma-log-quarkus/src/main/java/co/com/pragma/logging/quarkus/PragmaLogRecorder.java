@@ -5,6 +5,7 @@ import co.com.pragma.logging.core.PragmaLogSettings;
 import co.com.pragma.logging.core.StandardFields;
 import co.com.pragma.logging.core.alert.LogAlertListener;
 import co.com.pragma.logging.core.alert.LogAlerts;
+import co.com.pragma.logging.core.enrich.LogEnrichers;
 import co.com.pragma.logging.core.format.LogEventFormatter;
 import co.com.pragma.logging.core.format.PlainTextFormat;
 import co.com.pragma.logging.core.format.StructuredFormat;
@@ -104,7 +105,7 @@ public class PragmaLogRecorder {
         DateTimeFormatter timestamp = timestamp(settings.timestamp(),
                 plain ? TimestampFormat.PLAIN_DEFAULT : TimestampFormat.JSON_DEFAULT);
         if (plain) {
-            return new RuntimeValue<>(Optional.of(new PragmaTextFormatter(masker, sanitizer, alerts,
+            return new RuntimeValue<>(Optional.of(new PragmaTextFormatter(masker, sanitizer, enrichers(settings), alerts,
                     textFormat(timestamp, console && settings.color().mode().enabled(), settings.color().levels()),
                     hidden, stacktrace.include(), stacktrace.maxDepth(), stacktrace.maxLength(),
                     stacktrace.rootCauseFirst())));
@@ -114,7 +115,7 @@ public class PragmaLogRecorder {
         }
         StructuredEventWriter writer = new StructuredEventWriter(layout(settings, hidden), eventFormatter(settings),
                 alerts);
-        return new RuntimeValue<>(Optional.of(new PragmaStructuredFormatter(masker, sanitizer, alerts, writer,
+        return new RuntimeValue<>(Optional.of(new PragmaStructuredFormatter(masker, sanitizer, enrichers(settings), alerts, writer,
                 timestamp, staticFields(settings), stacktrace.include(), stacktrace.maxDepth(), stacktrace.maxLength(),
                 stacktrace.rootCauseFirst())));
     }
@@ -147,6 +148,17 @@ public class PragmaLogRecorder {
                     ? PatternMasker.of(masking.patterns().orElse(List.of()), masking.character().charAt(0))
                     : PatternMasker.none();
             return new TextSanitizer(patterns, settings.maxFieldLength());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Invalid pragma.log configuration: " + e.getMessage(), e);
+        }
+    }
+
+    private static LogEnrichers enrichers(PragmaLogConfig settings) {
+        try {
+            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+            return new LogEnrichers(settings.enrichers().orElse(List.of()).stream()
+                    .map(className -> LogEnrichers.load(className, classLoader))
+                    .toList());
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Invalid pragma.log configuration: " + e.getMessage(), e);
         }
@@ -212,7 +224,7 @@ public class PragmaLogRecorder {
         return fields;
     }
 
-    private static MaskingSettings masking(PragmaLogConfig.Masking masking) {
+    static MaskingSettings masking(PragmaLogConfig.Masking masking) {
         try {
             if (masking.character().length() != 1) {
                 throw new IllegalArgumentException("pragma.log.masking.character must be exactly one character, got '"

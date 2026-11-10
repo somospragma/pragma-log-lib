@@ -96,13 +96,13 @@
 | CTX-07 | Limpieza obligatoria del contexto al final del request (sin memory leaks) | S | 🟡 | MUST | — |
 | CTX-08 | Variables propias del contexto en los logs: claves declaradas en config (`pragma.log.context-keys`) que viajan en el Reactor Context y salen como campos | N | — | MUST | Pedido en el relanzamiento (2026-10-31). En MVC basta con MDC. |
 | ENR-01 | Contexto HTTP: método, path, status, duración | S | 🟡 B | SHOULD | B captura antes de ejecutar el método (status inválido). Hecho en v2 (2026-10-31): log de fin de request con status y duración. |
-| ENR-02 | `additionalFields` desde `header` / `query` | S | 🟡 A | MUST | A vía MDC en el interceptor. **v1 (2026-11-09):** entra por decisión de producto. |
-| ENR-03 | Captura de headers con whitelist/blacklist | S | 🟡 B | MUST | Por defecto: whitelist vacía. **v1 (2026-11-09):** entra por decisión de producto. |
-| ENR-04 | Captura de request/response body (opt-in) | S | ⚪ B | MUST | Coste y riesgo de datos sensibles altos. **v1 (2026-11-09):** entra por decisión de producto. |
-| ENR-05 | `@LogEnrichment` por clase/método vía AOP | S | 🔴 B | MUST | (ADR-10) Un filtro global configurable es más simple que AOP por anotación. **v1 (2026-11-09):** entra por decisión de producto. |
+| ENR-02 | `additionalFields` desde `header` / `query` | S | 🟡 A | MUST | A vía MDC en el interceptor. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `http.query-params` (lista o `*`), leídos solo de la URL. |
+| ENR-03 | Captura de headers con whitelist/blacklist | S | 🟡 B | MUST | Por defecto: whitelist vacía. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `http.headers: "*"` con `http.exclude-headers` (credenciales por defecto). |
+| ENR-04 | Captura de request/response body (opt-in) | S | ⚪ B | MUST | Coste y riesgo de datos sensibles altos. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `http.body` (apagado por defecto), JSON y formularios enmascarados por nombre, límite `max-size`; en Quarkus para Quarkus REST. |
+| ENR-05 | `@LogEnrichment` por clase/método vía AOP | S | 🔴 B | MUST | (ADR-10) Un filtro global configurable es más simple que AOP por anotación. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `@LogEnrichment` + `@LogField` en beans de Spring (spring-aop, sin AspectJ) y CDI; sigue a `Mono`/`Flux`/`Uni`. |
 | ENR-06 | Usuario autenticado desde Spring Security | S | — | DROP | — **Fuera (2026-11-09):** decisión de producto. |
-| ENR-07 | Enrichers custom (`LogEnricher`) registrables | S | ⚪ | MUST | Interfaz existe, sin conectar al pipeline. **v1 (2026-11-09):** entra por decisión de producto. |
-| ENR-08 | Log de acceso por request (entrada/salida) | N | — | MUST | Útil y frecuente; evaluar. **v1 (2026-11-09):** entra por decisión de producto. |
+| ENR-07 | Enrichers custom (`LogEnricher`) registrables | S | ⚪ | MUST | Interfaz existe, sin conectar al pipeline. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `LogEnricher` por config, código o bean (Spring y CDI); campos enmascarados. |
+| ENR-08 | Log de acceso por request (entrada/salida) | N | — | MUST | Útil y frecuente; evaluar. **v1 (2026-11-09):** entra por decisión de producto. **Hecho en v2 (2026-11-10):** `http.request-log.entry`. |
 
 ### 1.7 Alertas y hooks (ALR)
 

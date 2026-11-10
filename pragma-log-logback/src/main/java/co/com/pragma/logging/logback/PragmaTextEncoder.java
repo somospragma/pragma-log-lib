@@ -6,6 +6,7 @@ import co.com.pragma.logging.core.format.ColorMode;
 import co.com.pragma.logging.core.format.PlainTextFormat;
 import co.com.pragma.logging.core.format.TimestampFormat;
 import co.com.pragma.logging.core.alert.LogAlerts;
+import co.com.pragma.logging.core.enrich.LogEnrichers;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskingSettings;
 import co.com.pragma.logging.core.masking.TextSanitizer;
@@ -51,6 +52,7 @@ public class PragmaTextEncoder extends EncoderBase<ILoggingEvent> {
     private final List<String> configurationErrors = new ArrayList<>();
     private EventMasker eventMasker;
     private LogAlerts alerts = LogAlerts.none();
+    private LogEnrichers enrichers = LogEnrichers.none();
     private PlainTextFormat format;
     private MaskingThrowableConverter throwableConverter;
 
@@ -112,6 +114,11 @@ public class PragmaTextEncoder extends EncoderBase<ILoggingEvent> {
     /** Class name of a {@code LogAlertListener}; may be repeated (ALR-02). */
     public void addAlertListener(String className) {
         alertOptions.addListener(className);
+    }
+
+    /** Class name of a {@code LogEnricher} that adds fields to every event; may be repeated (ENR-07). */
+    public void addEnricher(String className) {
+        alertOptions.addEnricher(className);
     }
 
     /** Whether alerts are also written to standard error, at most once per minute per logger. Default true. */
@@ -178,6 +185,8 @@ public class PragmaTextEncoder extends EncoderBase<ILoggingEvent> {
         }
         eventMasker = new EventMasker(masker, buildSanitizer());
         alerts = buildAlerts();
+        enrichers = alertOptions.buildEnrichers(
+                e -> configurationError("pragma-log: invalid enricher: " + e.getMessage(), e));
         format = buildFormat();
         throwableConverter = new MaskingThrowableConverter(eventMasker.sanitizer(), stacktraceMaxDepth,
                 stacktraceMaxLength, stacktraceRootCauseFirst);
@@ -230,6 +239,14 @@ public class PragmaTextEncoder extends EncoderBase<ILoggingEvent> {
 
     private byte[] write(ILoggingEvent event) {
         Map<String, Object> fields = new LinkedHashMap<>();
+        if (eventMasker != null && event instanceof MaskedLoggingEvent) {
+            enrichers.fields(event.getLoggerName(), String.valueOf(event.getLevel())).forEach((name, value) -> {
+                Object masked = eventMasker.maskField(name, value);
+                if (masked != null) {
+                    putUnlessHidden(fields, name, masked);
+                }
+            });
+        }
         Map<String, String> mdc = event.getMDCPropertyMap();
         if (mdc != null) {
             mdc.forEach((name, value) -> putUnlessHidden(fields, name, value));

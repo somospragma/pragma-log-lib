@@ -3,6 +3,7 @@ package co.com.pragma.logging.spring;
 import co.com.pragma.logging.core.http.HttpLogContext;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import org.slf4j.MDC;
 
@@ -19,9 +20,18 @@ final class RequestLogContext {
     private RequestLogContext() {
     }
 
+    /**
+     * Builds the context of a request.
+     *
+     * @param headers     first value of a header, or {@code null}
+     * @param headerNames names of the request headers, for {@code *}
+     * @param query       raw query string, or {@code null}
+     */
     static Map<String, String> build(PragmaLogProperties.Http properties, String method, String path,
-            UnaryOperator<String> headers) {
-        return HttpLogContext.build(properties.getRequestIdHeader(), properties.getHeaders(), method, path, headers);
+            UnaryOperator<String> headers, Supplier<Iterable<String>> headerNames, String query) {
+        Map<String, String> parameters = HttpLogContext.queryParameters(query);
+        return HttpLogContext.build(properties.settings(), method, path, headers, headerNames, parameters::get,
+                parameters::keySet);
     }
 
     static boolean isContextKey(String key) {

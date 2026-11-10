@@ -1,6 +1,8 @@
 package co.com.pragma.logging.spring;
 
 import co.com.pragma.logging.core.format.ColorMode;
+import co.com.pragma.logging.core.http.HttpBodyCapture;
+import co.com.pragma.logging.core.http.HttpLogSettings;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,6 +70,9 @@ public class PragmaLogProperties {
 
     /** Fields written first, in this order, by original or new name. The rest keep their natural order. */
     private List<String> fieldOrder = new ArrayList<>();
+
+    /** LogEnricher classes with a public no-arg constructor; their fields are added to every log. Beans work too. */
+    private List<String> enrichers = new ArrayList<>();
 
     /** Fields every log must have. A missing one is written with required-placeholder and reported as an alert. */
     private List<String> requiredFields = new ArrayList<>();
@@ -401,10 +406,21 @@ public class PragmaLogProperties {
         /** Header that carries the request id; generated when missing and echoed in the response. */
         private String requestIdHeader = "X-Request-Id";
 
-        /** Request headers copied to the logs (allow list). Sensitive names are masked. */
+        /**
+         * Request headers copied to the logs (allow list); "*" copies all of them except exclude-headers. Sensitive
+         * names are masked.
+         */
         private List<String> headers = new ArrayList<>();
 
+        /** Headers "*" never copies; headers listed explicitly in headers are always copied. */
+        private List<String> excludeHeaders = new ArrayList<>(HttpLogSettings.DEFAULT_EXCLUDED_HEADERS);
+
+        /** Query parameters copied to the logs as http.query.NAME; "*" copies all of them. Sensitive names are masked. */
+        private List<String> queryParams = new ArrayList<>();
+
         private final RequestLog requestLog = new RequestLog();
+
+        private final Body body = new Body();
 
         public boolean isEnabled() {
             return enabled;
@@ -430,8 +446,99 @@ public class PragmaLogProperties {
             this.headers = headers;
         }
 
+        public List<String> getExcludeHeaders() {
+            return excludeHeaders;
+        }
+
+        public void setExcludeHeaders(List<String> excludeHeaders) {
+            this.excludeHeaders = excludeHeaders;
+        }
+
+        public List<String> getQueryParams() {
+            return queryParams;
+        }
+
+        public void setQueryParams(List<String> queryParams) {
+            this.queryParams = queryParams;
+        }
+
         public RequestLog getRequestLog() {
             return requestLog;
+        }
+
+        public Body getBody() {
+            return body;
+        }
+
+        HttpLogSettings settings() {
+            return new HttpLogSettings(requestIdHeader, headers, excludeHeaders, queryParams);
+        }
+    }
+
+    public static class Body {
+
+        /**
+         * Whether request and response bodies are added to the request log (http.request.body, http.response.body).
+         * JSON and form bodies are masked by field name like any logged object; other text only by patterns.
+         */
+        private boolean enabled;
+
+        /** Whether the request body is captured. */
+        private boolean request = true;
+
+        /** Whether the response body is captured. */
+        private boolean response = true;
+
+        /** Bytes kept from each body; longer bodies are cut. */
+        private DataSize maxSize = DataSize.ofBytes(HttpBodyCapture.DEFAULT_MAX_SIZE);
+
+        /** Captured content types; type/* and application/*+json are accepted. Binary bodies are never captured. */
+        private List<String> contentTypes = new ArrayList<>(HttpBodyCapture.DEFAULT_CONTENT_TYPES);
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public boolean isRequest() {
+            return request;
+        }
+
+        public void setRequest(boolean request) {
+            this.request = request;
+        }
+
+        public boolean isResponse() {
+            return response;
+        }
+
+        public void setResponse(boolean response) {
+            this.response = response;
+        }
+
+        public DataSize getMaxSize() {
+            return maxSize;
+        }
+
+        public void setMaxSize(DataSize maxSize) {
+            this.maxSize = maxSize;
+        }
+
+        public List<String> getContentTypes() {
+            return contentTypes;
+        }
+
+        public void setContentTypes(List<String> contentTypes) {
+            this.contentTypes = contentTypes;
+        }
+
+        HttpBodyCapture capture() {
+            return enabled
+                    ? new HttpBodyCapture(request, response, Math.toIntExact(maxSize.toBytes()), contentTypes)
+                    : HttpBodyCapture.none();
         }
     }
 
@@ -439,6 +546,9 @@ public class PragmaLogProperties {
 
         /** Whether one log with http.status and http.durationMs is written when each request ends. */
         private boolean enabled = true;
+
+        /** Whether one more log is written when each request starts ("HTTP GET /orders started"). */
+        private boolean entry;
 
         /** Paths without that log, as Ant-style patterns. */
         private List<String> excludePaths = new ArrayList<>(List.of("/actuator/**"));
@@ -449,6 +559,14 @@ public class PragmaLogProperties {
 
         public void setEnabled(boolean enabled) {
             this.enabled = enabled;
+        }
+
+        public boolean isEntry() {
+            return entry;
+        }
+
+        public void setEntry(boolean entry) {
+            this.entry = entry;
         }
 
         public List<String> getExcludePaths() {
@@ -490,6 +608,14 @@ public class PragmaLogProperties {
 
     public Csv getCsv() {
         return csv;
+    }
+
+    public List<String> getEnrichers() {
+        return enrichers;
+    }
+
+    public void setEnrichers(List<String> enrichers) {
+        this.enrichers = enrichers;
     }
 
     public List<String> getFieldOrder() {

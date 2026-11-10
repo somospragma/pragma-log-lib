@@ -3,6 +3,7 @@ package co.com.pragma.logging.quarkus;
 import co.com.pragma.logging.core.Throwables;
 import co.com.pragma.logging.core.format.PlainTextFormat;
 import co.com.pragma.logging.core.alert.LogAlerts;
+import co.com.pragma.logging.core.enrich.LogEnrichers;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.TextSanitizer;
 import java.util.Map;
@@ -25,9 +26,9 @@ public final class PragmaTextFormatter extends ExtFormatter {
     private final int stacktraceMaxLength;
     private final boolean stacktraceRootCauseFirst;
 
-    PragmaTextFormatter(LogMasker masker, TextSanitizer sanitizer, LogAlerts alerts, PlainTextFormat format, Set<String> hidden, boolean includeStacktrace,
+    PragmaTextFormatter(LogMasker masker, TextSanitizer sanitizer, LogEnrichers enrichers, LogAlerts alerts, PlainTextFormat format, Set<String> hidden, boolean includeStacktrace,
             int stacktraceMaxDepth, int stacktraceMaxLength, boolean stacktraceRootCauseFirst) {
-        this.masking = new RecordMasking(masker, sanitizer);
+        this.masking = new RecordMasking(masker, sanitizer, enrichers);
         this.alerts = alerts;
         this.format = format;
         this.hidden = Set.copyOf(hidden);

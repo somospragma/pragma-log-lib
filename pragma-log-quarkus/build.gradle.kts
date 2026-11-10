@@ -35,6 +35,10 @@ dependencies {
     implementation(libs.quarkus.arc)
     // Optional: the HTTP context is registered only when the application has an HTTP server.
     compileOnly(libs.quarkus.vertx.http)
+    // Optional: bodies are captured only for Quarkus REST endpoints (ENR-04).
+    compileOnly(libs.quarkus.rest)
+    // Optional: @LogEnrichment keeps its fields until a Mutiny Uni completes.
+    compileOnly("io.smallrye.reactive:mutiny")
     compileOnly("io.vertx:vertx-codegen") // annotations of the Vert.x API, avoids compiler warnings
     annotationProcessor(platform(libs.quarkus.bom))
     annotationProcessor(libs.quarkus.extension.processor)

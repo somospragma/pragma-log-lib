@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import co.com.pragma.logging.core.alert.LargeLogAlert;
 import co.com.pragma.logging.core.alert.LogAlertListener;
 import co.com.pragma.logging.core.alert.LogAlerts;
+import co.com.pragma.logging.core.enrich.LogEnrichers;
 import co.com.pragma.logging.core.format.PlainTextFormat;
 import co.com.pragma.logging.core.format.TimestampFormat;
 import co.com.pragma.logging.core.masking.LogMasker;
@@ -38,7 +39,7 @@ class PragmaTextFormatterTest {
 
     private PragmaTextFormatter formatter(boolean colors, Set<String> hidden, TextSanitizer sanitizer,
             LogAlerts alerts) {
-        return new PragmaTextFormatter(new LogMasker(MaskingSettings.defaults()), sanitizer, alerts,
+        return new PragmaTextFormatter(new LogMasker(MaskingSettings.defaults()), sanitizer, LogEnrichers.none(), alerts,
                 new PlainTextFormat(TimestampFormat.of("HH:mm:ss", "UTC"), colors, Map.of()), hidden, true, 50,
                 16_384, false);
     }

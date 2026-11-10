@@ -3,6 +3,7 @@ package co.com.pragma.logging.quarkus;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import co.com.pragma.logging.core.alert.LogAlerts;
+import co.com.pragma.logging.core.enrich.LogEnrichers;
 import co.com.pragma.logging.core.format.CsvEventFormatter;
 import co.com.pragma.logging.core.format.JsonEventFormatter;
 import co.com.pragma.logging.core.format.LogEventFormatter;
@@ -43,7 +44,8 @@ class PragmaStructuredFormatterTest {
 
     private PragmaStructuredFormatter formatter(EventLayout layout, LogEventFormatter format) {
         return new PragmaStructuredFormatter(new LogMasker(MaskingSettings.defaults()),
-                new TextSanitizer(PatternMasker.of(List.of("CARD"), '*'), 0), LogAlerts.none(),
+                new TextSanitizer(PatternMasker.of(List.of("CARD"), '*'), 0),
+                new LogEnrichers(List.of(event -> event.put("region", "us-east-1"))), LogAlerts.none(),
                 new StructuredEventWriter(layout, format, LogAlerts.none()),
                 TimestampFormat.of(TimestampFormat.JSON_DEFAULT, null), Map.of("app", "orders-service"), true, 50,
                 16_384, false);

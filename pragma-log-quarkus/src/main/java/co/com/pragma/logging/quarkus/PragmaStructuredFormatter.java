@@ -3,6 +3,7 @@ package co.com.pragma.logging.quarkus;
 import co.com.pragma.logging.core.StandardFields;
 import co.com.pragma.logging.core.Throwables;
 import co.com.pragma.logging.core.alert.LogAlerts;
+import co.com.pragma.logging.core.enrich.LogEnrichers;
 import co.com.pragma.logging.core.layout.EventFields;
 import co.com.pragma.logging.core.layout.StructuredEventWriter;
 import co.com.pragma.logging.core.masking.LogMasker;
@@ -42,10 +43,10 @@ public final class PragmaStructuredFormatter extends ExtFormatter {
      * @param timestamp    formatter with a zone (FMT-06)
      * @param staticFields fields written in every event (app, version, host, pid, fixed fields), by schema name
      */
-    PragmaStructuredFormatter(LogMasker masker, TextSanitizer sanitizer, LogAlerts alerts, StructuredEventWriter writer,
+    PragmaStructuredFormatter(LogMasker masker, TextSanitizer sanitizer, LogEnrichers enrichers, LogAlerts alerts, StructuredEventWriter writer,
             DateTimeFormatter timestamp, Map<String, Object> staticFields, boolean includeStacktrace,
             int stacktraceMaxDepth, int stacktraceMaxLength, boolean stacktraceRootCauseFirst) {
-        this.masking = new RecordMasking(masker, sanitizer);
+        this.masking = new RecordMasking(masker, sanitizer, enrichers);
         this.alerts = alerts;
         this.writer = writer;
         this.timestamp = timestamp;

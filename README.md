@@ -49,9 +49,15 @@ pragma:
     stacktrace:
       max-depth: 30
     http:
-      headers: [X-Client-Id]           # headers a incluir (lista permitida); los sensibles salen enmascarados
+      headers: [X-Client-Id]           # headers a incluir; "*" = todos menos exclude-headers (credenciales)
+      query-params: [page, channel]    # salen como http.query.page; "*" = todos
       request-log:
+        entry: true                    # además, un log al iniciar cada request
         exclude-paths: [/actuator/**, /health]   # enabled: false lo apaga
+      body:
+        enabled: true                  # bodies en el log de fin de request, enmascarados (apagado por defecto)
+        max-size: 4KB
+    enrichers: [com.acme.TenantEnricher]   # o como bean de Spring
     context-keys: [userId, tenantId]   # WebFlux: valores del Reactor Context que salen en los logs
     timestamp:
       zone: America/Bogota             # pattern: [ISO_INSTANT] o yyyy-MM-dd HH:mm:ss.SSS
@@ -232,6 +238,38 @@ Cuando se loguea una excepción, además del `stacktrace` sale un resumen fácil
 ```json
 "error":{"type":"java.lang.IllegalStateException","message":"Gateway timeout","rootCause":"java.net.SocketTimeoutException: Read timed out"}
 ```
+
+## Contexto HTTP, bodies y enriquecimiento
+
+**Headers y query params.** `http.headers` es una lista permitida; con `"*"` entran todos los headers menos los de `http.exclude-headers` (por defecto `Authorization`, `Proxy-Authorization`, `Cookie` y `Set-Cookie`). Un header nombrado explícitamente siempre entra y, si su nombre es sensible, sale enmascarado. `http.query-params` hace lo mismo con los parámetros de la URL (`http.query.page`); nunca se lee el body de un formulario para obtenerlos.
+
+**Log de inicio.** Con `http.request-log.entry: true` cada request escribe también `HTTP POST /orders started` al comenzar, con el mismo contexto.
+
+**Bodies.** Con `http.body.enabled: true` el log de fin de request lleva `http.request.body` y `http.response.body`:
+
+```json
+{"message":"HTTP POST /orders 200 in 35 ms","http.request.body":{"amount":10,"password":"****"},"http.response.body":{"status":"created","token":"*****"},...}
+```
+
+- Los bodies JSON y de formulario se convierten en objetos y se enmascaran como cualquier objeto logueado: por nombre de campo a cualquier profundidad y por patrones. En Quarkus la respuesta es el objeto que retorna el endpoint, así que también aplican sus `@MaskedLogField`. Otros textos (XML, texto plano) solo pasan por los patrones.
+- Se guardan los primeros `max-size` bytes (4 KB por defecto); el resto se corta con `...[truncated N bytes]`. Los bodies se copian a medida que pasan, sin leerlos por adelantado ni guardarlos completos en memoria. Solo se capturan los tipos de `content-types` (JSON, formularios, XML, `text/*`); nunca binarios.
+- En Quarkus aplica a los endpoints de Quarkus REST.
+
+**Enrichers.** Para agregar campos propios a todos los logs, implementa `LogEnricher` (`event.put("tenantId", ...)`). Regístralo como bean de Spring o CDI, en `enrichers` con el nombre de la clase, o con `LogEnrichers.register(...)`. Sus campos se enmascaran como los key-values, y un MDC o key-value con el mismo nombre gana.
+
+**`@LogEnrichment` y `@LogField`.** Agregan campos a todos los logs escritos mientras corre un método de un bean de Spring o CDI, incluidos los de las clases que llama:
+
+```java
+@LogEnrichment("domain=payments")              // en la clase: aplica a todos sus métodos
+class PaymentService {
+    @LogEnrichment("operation=refund")
+    Mono<Refund> refund(@LogField("paymentId") String id) {   // los logs llevan domain, operation y paymentId
+        ...
+    }
+}
+```
+
+Los valores simples se escriben tal cual y los objetos como JSON enmascarado. Al terminar el método se restauran los valores anteriores del MDC. Con `Mono`, `Flux` o `Uni` los campos viajan hasta que el flujo termina, en cualquier hilo. En Spring solo hace falta spring-aop (viene con Spring), no AspectJ.
 
 ## Formatos y distribución de campos
 

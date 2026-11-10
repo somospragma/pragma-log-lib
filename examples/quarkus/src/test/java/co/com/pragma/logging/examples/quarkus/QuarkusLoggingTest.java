@@ -53,6 +53,29 @@ class QuarkusLoggingTest {
     }
 
     @Test
+    @DisplayName("start log, query parameters, masked bodies, @LogEnrichment and enricher beans (ENR-02..05, ENR-07, ENR-08)")
+    void paymentsWithBodiesAndEnrichment() throws Exception {
+        given().header("X-Request-Id", "req-pay").contentType("application/json")
+                .body("{\"amount\":25.5,\"cardNumber\":\"4111111111111111\"}")
+                .post("/customers/c-1/payments?page=3").then().statusCode(200);
+
+        assertThat(line("HTTP POST /customers/c-1/payments started").get("http.query.page").asString()).isEqualTo("3");
+        JsonNode charging = line("Charging 25.5");
+        assertThat(charging.get("domain").asString()).isEqualTo("payments");
+        assertThat(charging.get("operation").asString()).isEqualTo("charge");
+        assertThat(charging.get("customerId").asString()).isEqualTo("c-1");
+        assertThat(charging.get("region").asString()).isEqualTo("co-bog");
+        assertThat(charging.get("requestId").asString()).isEqualTo("req-pay");
+        JsonNode done = line("HTTP POST /customers/c-1/payments 200");
+        assertThat(done.get("http.request.body").get("amount").asDouble()).isEqualTo(25.5);
+        assertThat(done.get("http.request.body").get("cardNumber").asString()).doesNotContain("4111111111111111");
+        assertThat(done.get("http.response.body").get("status").asString()).isEqualTo("approved");
+        assertThat(done.get("http.response.body").get("token").asString()).isEqualTo("rcpt-0001-****");
+        assertThat(done.has("domain")).isFalse();
+        assertThat(Files.readString(LOG)).doesNotContain("4111111111111111").doesNotContain("rcpt-0001-2345");
+    }
+
+    @Test
     @DisplayName("a class without masking annotations is logged as JSON")
     void plainClass() throws Exception {
         given().get("/customers/9").then().statusCode(200);

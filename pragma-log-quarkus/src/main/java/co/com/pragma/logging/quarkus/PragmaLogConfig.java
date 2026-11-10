@@ -83,6 +83,9 @@ public interface PragmaLogConfig {
      */
     Optional<String> extraField();
 
+    /** LogEnricher classes with a public no-arg constructor; their fields are added to every log. */
+    Optional<List<String>> enrichers();
+
     Masking masking();
 
     Stacktrace stacktrace();
@@ -233,10 +236,49 @@ public interface PragmaLogConfig {
         @WithDefault("X-Request-Id")
         String requestIdHeader();
 
-        /** Request headers copied to the logs (allow list). Sensitive names are masked. */
+        /**
+         * Request headers copied to the logs (allow list); "*" copies all of them except exclude-headers. Sensitive
+         * names are masked.
+         */
         Optional<List<String>> headers();
 
+        /** Headers "*" never copies; headers listed explicitly in headers are always copied. */
+        @WithDefault("Authorization,Proxy-Authorization,Cookie,Set-Cookie")
+        List<String> excludeHeaders();
+
+        /** Query parameters copied to the logs as http.query.NAME; "*" copies all of them. Sensitive names are masked. */
+        Optional<List<String>> queryParams();
+
         RequestLog requestLog();
+
+        Body body();
+    }
+
+    interface Body {
+
+        /**
+         * Whether request and response bodies are added to the request log (http.request.body,
+         * http.response.body), for Quarkus REST endpoints. JSON and form request bodies are masked by field name;
+         * response entities are masked like any logged object.
+         */
+        @WithDefault("false")
+        boolean enabled();
+
+        /** Whether the request body is captured. */
+        @WithDefault("true")
+        boolean request();
+
+        /** Whether the response body is captured. */
+        @WithDefault("true")
+        boolean response();
+
+        /** Bytes kept from each request body; longer bodies are cut. */
+        @WithDefault("4K")
+        MemorySize maxSize();
+
+        /** Captured request content types; type/* and application/*+json are accepted. */
+        @WithDefault("application/json,application/*+json,application/x-www-form-urlencoded,application/xml,text/*")
+        List<String> contentTypes();
     }
 
     interface RequestLog {
@@ -244,6 +286,10 @@ public interface PragmaLogConfig {
         /** Whether one log with http.status and http.durationMs is written when each request ends. */
         @WithDefault("true")
         boolean enabled();
+
+        /** Whether one more log is written when each request starts ("HTTP GET /orders started"). */
+        @WithDefault("false")
+        boolean entry();
 
         /** Paths without that log; a trailing /** matches a whole subtree, * one path segment. */
         @WithDefault("/q/**")

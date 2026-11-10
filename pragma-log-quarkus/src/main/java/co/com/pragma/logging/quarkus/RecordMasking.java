@@ -1,5 +1,6 @@
 package co.com.pragma.logging.quarkus;
 
+import co.com.pragma.logging.core.enrich.LogEnrichers;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.TextSanitizer;
 import co.com.pragma.logging.quarkus.slf4j.Slf4jLogRecord;
@@ -23,10 +24,12 @@ final class RecordMasking {
 
     private final LogMasker masker;
     private final TextSanitizer sanitizer;
+    private final LogEnrichers enrichers;
 
-    RecordMasking(LogMasker masker, TextSanitizer sanitizer) {
+    RecordMasking(LogMasker masker, TextSanitizer sanitizer, LogEnrichers enrichers) {
         this.masker = masker;
         this.sanitizer = sanitizer;
+        this.enrichers = enrichers;
     }
 
     /** Pattern masking and truncation (MSK-10, FLD-08), also for stack traces and fallback messages. */
@@ -117,9 +120,15 @@ final class RecordMasking {
         return masked;
     }
 
-    /** MDC entries, then SLF4J key-values, masked by name; objects become JSON trees (MSK-09). */
+    /**
+     * Enricher fields, MDC entries, then SLF4J key-values, masked by name; objects become JSON trees (MSK-09,
+     * ENR-07). Later entries win.
+     */
     Map<String, Object> fields(ExtLogRecord record) {
         Map<String, Object> fields = new LinkedHashMap<>();
+        enrichers.fields(record.getLoggerName(), level(record.getLevel())).forEach((key, value) ->
+                put(fields, key, value instanceof CharSequence || value instanceof Number || value instanceof Boolean
+                        ? value : masker.toTree(value)));
         Map<String, String> mdc = record.getMdcCopy();
         if (mdc != null) {
             mdc.forEach((key, value) -> put(fields, key, value));

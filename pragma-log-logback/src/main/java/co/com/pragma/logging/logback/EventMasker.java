@@ -83,6 +83,17 @@ final class EventMasker {
         return false;
     }
 
+    /**
+     * Masks one field added outside the event, such as an enricher field, like a key-value; {@code null} when its
+     * sensitive name hides it.
+     */
+    Object maskField(String name, Object value) {
+        if (!masker.isSensitiveName(name)) {
+            return sanitizer.value(maskValue(value));
+        }
+        return masker.hidesSensitiveNames() ? null : masker.maskByName(value);
+    }
+
     private List<KeyValuePair> maskKeyValuePairs(List<KeyValuePair> pairs) {
         if (pairs == null || pairs.isEmpty()) {
             return pairs;

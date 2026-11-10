@@ -1,6 +1,7 @@
 package co.com.pragma.logging.spring;
 
 import co.com.pragma.logging.core.alert.LogAlertListener;
+import co.com.pragma.logging.core.enrich.LogEnricher;
 import io.micrometer.context.ContextRegistry;
 import io.micrometer.context.ThreadLocalAccessor;
 import org.springframework.beans.factory.ObjectProvider;
@@ -12,6 +13,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -25,12 +27,19 @@ import reactor.core.publisher.Hooks;
 @AutoConfiguration
 @ConditionalOnProperty(prefix = PragmaLogProperties.PREFIX, name = "enabled", matchIfMissing = true)
 @EnableConfigurationProperties(PragmaLogProperties.class)
+@Import(LogEnrichmentConfiguration.class)
 public class PragmaLogAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
     PragmaLogAlertRegistrar pragmaLogAlertRegistrar(ObjectProvider<LogAlertListener> listeners) {
         return new PragmaLogAlertRegistrar(listeners.orderedStream().toList());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    PragmaLogEnricherRegistrar pragmaLogEnricherRegistrar(ObjectProvider<LogEnricher> enrichers) {
+        return new PragmaLogEnricherRegistrar(enrichers.orderedStream().toList());
     }
 
     @Configuration(proxyBeanMethods = false)

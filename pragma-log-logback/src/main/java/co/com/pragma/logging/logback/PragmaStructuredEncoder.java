@@ -6,6 +6,7 @@ import co.com.pragma.logging.core.HostName;
 import co.com.pragma.logging.core.PragmaLogSettings;
 import co.com.pragma.logging.core.StandardFields;
 import co.com.pragma.logging.core.alert.LogAlerts;
+import co.com.pragma.logging.core.enrich.LogEnrichers;
 import co.com.pragma.logging.core.format.JsonEventFormatter;
 import co.com.pragma.logging.core.format.LogEventFormatter;
 import co.com.pragma.logging.core.format.StructuredFormat;
@@ -86,6 +87,7 @@ public class PragmaStructuredEncoder extends EncoderBase<ILoggingEvent> {
     private EventMasker eventMasker;
     private StructuredEventWriter writer;
     private LogAlerts alerts = LogAlerts.none();
+    private LogEnrichers enrichers = LogEnrichers.none();
     private DateTimeFormatter timestamp;
     private Map<String, Object> staticFields = Map.of();
     private MaskingThrowableConverter throwableConverter;
@@ -171,6 +173,11 @@ public class PragmaStructuredEncoder extends EncoderBase<ILoggingEvent> {
     /** Class name of a {@code LogAlertListener}; may be repeated (ALR-02). */
     public void addAlertListener(String className) {
         alertOptions.addListener(className);
+    }
+
+    /** Class name of a {@code LogEnricher} that adds fields to every event; may be repeated (ENR-07). */
+    public void addEnricher(String className) {
+        alertOptions.addEnricher(className);
     }
 
     /** Whether alerts are also written to standard error, at most once per minute per logger. Default true. */
@@ -287,6 +294,7 @@ public class PragmaStructuredEncoder extends EncoderBase<ILoggingEvent> {
         verifyMasking(masker);
         eventMasker = new EventMasker(masker, buildSanitizer());
         alerts = buildAlerts();
+        enrichers = buildEnrichers();
         writer = new StructuredEventWriter(buildLayout(), buildFormatter(), alerts);
         timestamp = buildTimestamp();
         staticFields = staticFields(settings.appName());
@@ -348,6 +356,12 @@ public class PragmaStructuredEncoder extends EncoderBase<ILoggingEvent> {
                 .standard(StandardFields.THREAD, event.getThreadName())
                 .standard(StandardFields.MESSAGE, event.getFormattedMessage());
         if (failure == null) {
+            enrichers.fields(event.getLoggerName(), String.valueOf(event.getLevel())).forEach((name, value) -> {
+                Object masked = eventMasker.maskField(name, value);
+                if (masked != null) {
+                    fields.dynamic(name, masked);
+                }
+            });
             Map<String, String> mdc = event.getMDCPropertyMap();
             if (mdc != null) {
                 mdc.forEach(fields::dynamic);
@@ -427,6 +441,10 @@ public class PragmaStructuredEncoder extends EncoderBase<ILoggingEvent> {
             configurationError("pragma-log: invalid alert configuration: " + e.getMessage(), e);
             return LogAlerts.none();
         }
+    }
+
+    private LogEnrichers buildEnrichers() {
+        return alertOptions.buildEnrichers(e -> configurationError("pragma-log: invalid enricher: " + e.getMessage(), e));
     }
 
     /** An invalid layout is reported and replaced by the default one. */

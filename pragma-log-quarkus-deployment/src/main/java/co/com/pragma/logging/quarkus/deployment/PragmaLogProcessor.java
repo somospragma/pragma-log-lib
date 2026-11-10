@@ -1,20 +1,28 @@
 package co.com.pragma.logging.quarkus.deployment;
 
 import co.com.pragma.logging.core.alert.LogAlertListener;
+import co.com.pragma.logging.core.enrich.LogEnricher;
+import co.com.pragma.logging.core.enrich.LogEnrichment;
 import co.com.pragma.logging.core.format.LogEventFormatter;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskedLogField;
 import co.com.pragma.logging.core.masking.MaskingStrategy;
+import co.com.pragma.logging.quarkus.LogEnrichmentInterceptor;
+import co.com.pragma.logging.quarkus.PragmaLogBeans;
+import co.com.pragma.logging.quarkus.PragmaLogBodyProvider;
 import co.com.pragma.logging.quarkus.PragmaLogHttpFilter;
 import co.com.pragma.logging.quarkus.PragmaLogRecorder;
 import co.com.pragma.logging.quarkus.slf4j.PragmaSlf4jServiceProvider;
 import io.quarkus.arc.deployment.AdditionalBeanBuildItem;
+import io.quarkus.arc.deployment.InterceptorBindingRegistrarBuildItem;
+import io.quarkus.arc.processor.InterceptorBindingRegistrar;
 import io.quarkus.deployment.Capabilities;
 import io.quarkus.deployment.Capability;
 import io.quarkus.deployment.annotations.BuildProducer;
 import io.quarkus.deployment.annotations.BuildStep;
 import io.quarkus.deployment.annotations.ExecutionTime;
 import io.quarkus.deployment.annotations.Record;
+import io.quarkus.deployment.builditem.AdditionalIndexedClassesBuildItem;
 import io.quarkus.deployment.builditem.CombinedIndexBuildItem;
 import io.quarkus.deployment.builditem.FeatureBuildItem;
 import io.quarkus.deployment.builditem.LogConsoleFormatBuildItem;
@@ -23,6 +31,7 @@ import io.quarkus.deployment.builditem.nativeimage.ReflectiveClassBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ReflectiveMethodBuildItem;
 import io.quarkus.deployment.builditem.nativeimage.ServiceProviderBuildItem;
 import java.lang.reflect.Modifier;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import org.jboss.jandex.AnnotationInstance;
@@ -39,6 +48,7 @@ class PragmaLogProcessor {
     private static final DotName ALERT_LISTENER = DotName.createSimple(LogAlertListener.class);
     private static final DotName MASKING_STRATEGY = DotName.createSimple(MaskingStrategy.class);
     private static final DotName EVENT_FORMATTER = DotName.createSimple(LogEventFormatter.class);
+    private static final DotName ENRICHER = DotName.createSimple(LogEnricher.class);
 
     @BuildStep
     FeatureBuildItem feature() {
@@ -61,11 +71,31 @@ class PragmaLogProcessor {
         file.produce(new LogFileFormatBuildItem(recorder.formatter(false)));
     }
 
+    /** {@code @LogEnrichment} on CDI beans (ENR-05): a core annotation, registered as an interceptor binding. */
+    @BuildStep
+    void logEnrichment(BuildProducer<InterceptorBindingRegistrarBuildItem> bindings,
+            BuildProducer<AdditionalBeanBuildItem> beans) {
+        bindings.produce(new InterceptorBindingRegistrarBuildItem(new InterceptorBindingRegistrar() {
+            @Override
+            public List<InterceptorBinding> getAdditionalBindings() {
+                return List.of(InterceptorBinding.of(LogEnrichment.class, Set.of("value")));
+            }
+        }));
+        beans.produce(AdditionalBeanBuildItem.unremovableOf(LogEnrichmentInterceptor.class));
+        beans.produce(AdditionalBeanBuildItem.unremovableOf(PragmaLogBeans.class));
+    }
+
     /** Request context and completion log, only for applications with an HTTP server. */
     @BuildStep
-    void httpContext(Capabilities capabilities, BuildProducer<AdditionalBeanBuildItem> beans) {
+    void httpContext(Capabilities capabilities, BuildProducer<AdditionalBeanBuildItem> beans,
+            BuildProducer<AdditionalIndexedClassesBuildItem> indexed) {
         if (capabilities.isPresent(Capability.VERTX_HTTP)) {
             beans.produce(AdditionalBeanBuildItem.unremovableOf(PragmaLogHttpFilter.class));
+        }
+        if (capabilities.isPresent(Capability.REST)) {
+            // Quarkus REST finds @Provider classes in the application index (ENR-04).
+            indexed.produce(new AdditionalIndexedClassesBuildItem(PragmaLogBodyProvider.class.getName()));
+            beans.produce(AdditionalBeanBuildItem.unremovableOf(PragmaLogBodyProvider.class));
         }
     }
 
@@ -99,14 +129,14 @@ class PragmaLogProcessor {
     }
 
     /**
-     * Native mode: alert listeners, mask strategies and custom formats are created from their class names in the
-     * configuration.
+     * Native mode: alert listeners, mask strategies, custom formats and enrichers are created from their class
+     * names in the configuration.
      * Implementations in the application index are registered so that works without {@code @RegisterForReflection}.
      */
     @BuildStep
     ReflectiveClassBuildItem pluggableClasses(CombinedIndexBuildItem index) {
         Set<String> classes = new TreeSet<>();
-        for (DotName type : Set.of(ALERT_LISTENER, MASKING_STRATEGY, EVENT_FORMATTER)) {
+        for (DotName type : Set.of(ALERT_LISTENER, MASKING_STRATEGY, EVENT_FORMATTER, ENRICHER)) {
             index.getIndex().getAllKnownImplementations(type).stream()
                     .filter(info -> !Modifier.isAbstract(info.flags()))
                     .map(ClassInfo::name)

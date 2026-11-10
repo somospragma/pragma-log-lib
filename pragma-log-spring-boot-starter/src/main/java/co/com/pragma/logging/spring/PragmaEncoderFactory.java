@@ -76,6 +76,7 @@ final class PragmaEncoderFactory {
         encoder.setMaxLogSize(alerts.getMaxLogSize() == null ? 0 : alerts.getMaxLogSize().toBytes());
         encoder.setAlertConsole(alerts.isConsole());
         alerts.getListeners().forEach(encoder::addAlertListener);
+        properties.getEnrichers().forEach(encoder::addEnricher);
 
         PragmaLogProperties.Stacktrace stacktrace = properties.getStacktrace();
         encoder.setIncludeStacktrace(stacktrace.isInclude());
@@ -119,6 +120,7 @@ final class PragmaEncoderFactory {
         encoder.setMaxLogSize(alerts.getMaxLogSize() == null ? 0 : alerts.getMaxLogSize().toBytes());
         encoder.setAlertConsole(alerts.isConsole());
         alerts.getListeners().forEach(encoder::addAlertListener);
+        properties.getEnrichers().forEach(encoder::addEnricher);
 
         PragmaLogProperties.Stacktrace stacktrace = properties.getStacktrace();
         encoder.setIncludeStacktrace(stacktrace.isInclude());

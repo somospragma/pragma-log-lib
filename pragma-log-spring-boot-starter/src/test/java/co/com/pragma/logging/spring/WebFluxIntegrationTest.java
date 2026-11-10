@@ -2,12 +2,16 @@ package co.com.pragma.logging.spring;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import co.com.pragma.logging.core.enrich.LogEnrichment;
+import co.com.pragma.logging.core.enrich.LogField;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.AfterEach;
@@ -23,9 +27,12 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
@@ -75,12 +82,52 @@ class WebFluxIntegrationTest {
                     })
                     .contextWrite(Context.of("userId", "user-" + id, "tenantId", 42));
         }
+
+        @PostMapping("/payments")
+        Mono<Map<String, Object>> pay(@RequestBody Mono<Map<String, Object>> payment) {
+            return payment.map(body -> Map.<String, Object>of("status", "paid", "token", "t-987654"));
+        }
+    }
+
+    /** {@code @LogEnrichment} on a method returning a Mono: the fields reach operators that run later (ENR-05). */
+    static class RefundService {
+        private static final Logger log = LoggerFactory.getLogger(RefundService.class);
+
+        @LogEnrichment("operation=refund")
+        public Mono<String> refund(@LogField("paymentId") String paymentId) {
+            return Mono.just(paymentId)
+                    .delayElement(Duration.ofMillis(20))
+                    .map(value -> {
+                        log.info("Refund done {}", value);
+                        return value;
+                    });
+        }
+    }
+
+    @RestController
+    static class RefundController {
+        private final RefundService refunds;
+
+        RefundController(RefundService refunds) {
+            this.refunds = refunds;
+        }
+
+        @GetMapping("/refunds/{id}")
+        Mono<String> refund(@PathVariable("id") String id) {
+            return refunds.refund(id).doOnNext(value -> LoggerFactory.getLogger(RefundController.class)
+                    .info("Refund answered {}", value));
+        }
     }
 
     @SpringBootConfiguration
     @EnableAutoConfiguration
-    @Import(OrderController.class)
+    @Import({OrderController.class, RefundController.class})
     static class TestApp {
+
+        @Bean
+        RefundService refundService() {
+            return new RefundService();
+        }
     }
 
     @AfterEach
@@ -205,6 +252,46 @@ class WebFluxIntegrationTest {
             JsonNode failed = jsonLines(output, "HTTP GET /failing-order ").get(0);
             assertThat(failed.get("http.status").asInt()).isEqualTo(500);
             assertThat(failed.get("requestId").asString()).isEqualTo("req-5");
+        }
+    }
+
+    @Test
+    @DisplayName("request and response bodies are captured as they flow and masked (ENR-04)")
+    void bodies(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.http.body.enabled=true",
+                "pragma.log.http.request-log.entry=true")) {
+            int port = context.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
+            HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/payments"))
+                    .header("Content-Type", "application/json")
+                    .header("X-Request-Id", "req-p")
+                    .POST(HttpRequest.BodyPublishers.ofString("{\"amount\":5,\"cardNumber\":\"4111111111111111\"}"))
+                    .build();
+            HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+            assertThat(jsonLines(output, "HTTP POST /payments started").get(0).get("requestId").asString())
+                    .isEqualTo("req-p");
+            JsonNode done = jsonLines(output, "HTTP POST /payments 200").get(0);
+            assertThat(done.get("http.request.body").get("amount").asInt()).isEqualTo(5);
+            assertThat(done.get("http.request.body").get("cardNumber").asString()).matches("\\*+");
+            assertThat(done.get("http.response.body").get("status").asString()).isEqualTo("paid");
+            assertThat(done.get("http.response.body").get("token").asString()).matches("\\*+");
+            assertThat(output.getOut()).doesNotContain("4111111111111111").doesNotContain("t-987654");
+        }
+    }
+
+    @Test
+    @DisplayName("@LogEnrichment fields follow a Mono to other threads and do not leak afterwards (ENR-05)")
+    void enrichmentFollowsMono(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start()) {
+            getPath(context, "/refunds/r-9", "req-r").join();
+
+            JsonNode done = jsonLines(output, "Refund done r-9").get(0);
+            assertThat(done.get("operation").asString()).isEqualTo("refund");
+            assertThat(done.get("paymentId").asString()).isEqualTo("r-9");
+            assertThat(done.get("requestId").asString()).isEqualTo("req-r");
+            assertThat(done.get("thread").asString()).startsWith("parallel-");
+            JsonNode answered = jsonLines(output, "Refund answered r-9").get(0);
+            assertThat(answered.has("operation")).isFalse();
         }
     }
 

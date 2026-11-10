@@ -2,9 +2,14 @@ package co.com.pragma.logging.examples.quarkus;
 
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.core.MediaType;
 import java.time.Duration;
 import java.util.Collections;
 import org.slf4j.Logger;
@@ -14,6 +19,9 @@ import org.slf4j.LoggerFactory;
 public class CustomerResource {
 
     private static final Logger log = LoggerFactory.getLogger(CustomerResource.class);
+
+    @Inject
+    PaymentService payments;
     private static final org.jboss.logging.Logger jbossLog = org.jboss.logging.Logger.getLogger(CustomerResource.class);
 
     @GET
@@ -47,6 +55,15 @@ public class CustomerResource {
         var movements = Collections.nCopies(5_000, "purchase 10.00 USD");
         log.atInfo().addKeyValue("customerId", id).addKeyValue("movements", movements).log("History loaded");
         return movements.size();
+    }
+
+    /** With pragma.log.http.body.enabled the request and response bodies go to the completion log, masked. */
+    @POST
+    @Path("/{id}/payments")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Receipt pay(@PathParam("id") String id, Payment payment) {
+        return payments.charge(id, payment.amount());
     }
 
     @GET

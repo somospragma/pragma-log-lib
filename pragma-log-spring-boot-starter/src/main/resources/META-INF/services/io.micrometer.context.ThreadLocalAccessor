@@ -1,1 +1,2 @@
 co.com.pragma.logging.spring.PragmaMdcThreadLocalAccessor
+co.com.pragma.logging.spring.PragmaEnrichmentAccessor

@@ -55,8 +55,10 @@ tasks.withType<com.github.spotbugs.snom.SpotBugsTask>().configureEach {
 }
 
 // Dependency scan (Security stage): writes gradle.lockfile with what the module ships, for OSV-Scanner.
+// Lenient: the lock files only feed the scan; a stale local one must not break the build.
 dependencyLocking {
     lockAllConfigurations()
+    lockMode = LockMode.LENIENT
 }
 tasks.register("resolveShippedDependencies") {
     description = "Resolves the runtime and compile classpaths; run with --write-locks to record them."

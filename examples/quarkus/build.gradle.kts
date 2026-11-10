@@ -9,6 +9,7 @@ dependencies {
     implementation(enforcedPlatform(libs.quarkus.bom))
     implementation(project(":pragma-log-quarkus"))
     implementation(libs.quarkus.rest)
+    implementation("io.quarkus:quarkus-rest-jackson")
     testImplementation(libs.quarkus.junit5)
     testImplementation(libs.rest.assured)
     testImplementation(libs.assertj)

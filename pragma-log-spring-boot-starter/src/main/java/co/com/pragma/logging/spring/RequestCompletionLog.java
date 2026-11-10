@@ -9,8 +9,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.util.AntPathMatcher;
 
 /**
- * One log per finished request with {@code http.status} and {@code http.durationMs} (ENR-01), shared by the
- * Servlet and WebFlux filters. It carries the request context like any other log of the request.
+ * One log per finished request with {@code http.status} and {@code http.durationMs} (ENR-01), and optionally one
+ * when it starts (ENR-08), shared by the Servlet and WebFlux filters. They carry the request context like any other
+ * log of the request, and the captured bodies when enabled (ENR-04).
  */
 final class RequestCompletionLog {
 
@@ -20,16 +21,31 @@ final class RequestCompletionLog {
     private static final AntPathMatcher PATHS = new AntPathMatcher();
 
     private final boolean enabled;
+    private final boolean entry;
     private final List<String> excludePaths;
 
     RequestCompletionLog(PragmaLogProperties.RequestLog properties) {
         this.enabled = properties.isEnabled();
+        this.entry = properties.isEntry();
         this.excludePaths = List.copyOf(properties.getExcludePaths());
     }
 
-    /** Whether a request to this path gets a completion log. */
+    /** Whether a request to this path gets request logs. */
     boolean appliesTo(String path) {
         return enabled && log.isInfoEnabled() && excludePaths.stream().noneMatch(pattern -> PATHS.match(pattern, path));
+    }
+
+    /** Writes the start log, when enabled, with the request context in the MDC. */
+    void writeEntry(Map<String, String> context) {
+        if (!entry) {
+            return;
+        }
+        Map<String, String> previous = RequestLogContext.putInMdc(context);
+        try {
+            log.info(HttpLogContext.entryMessage(context));
+        } finally {
+            RequestLogContext.restoreMdc(previous);
+        }
     }
 
     /**
@@ -37,8 +53,9 @@ final class RequestCompletionLog {
      *
      * @param status      response status, or {@code null} when the client went away before it was known
      * @param startNanos  {@link System#nanoTime()} when the request started
+     * @param bodies      captured bodies by key-value name; values are masked by the encoder
      */
-    void write(Map<String, String> context, Integer status, long startNanos) {
+    void write(Map<String, String> context, Integer status, long startNanos, Map<String, Object> bodies) {
         long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
         Map<String, String> previous = RequestLogContext.putInMdc(context);
         try {
@@ -46,10 +63,17 @@ final class RequestCompletionLog {
             if (status != null) {
                 event = event.addKeyValue(HttpLogContext.HTTP_STATUS, status);
             }
-            event.addKeyValue(HttpLogContext.HTTP_DURATION_MS, durationMs)
-                    .log(HttpLogContext.completionMessage(context, status, durationMs));
+            event = event.addKeyValue(HttpLogContext.HTTP_DURATION_MS, durationMs);
+            for (Map.Entry<String, Object> body : bodies.entrySet()) {
+                event = event.addKeyValue(body.getKey(), body.getValue());
+            }
+            event.log(HttpLogContext.completionMessage(context, status, durationMs));
         } finally {
             RequestLogContext.restoreMdc(previous);
         }
+    }
+
+    void write(Map<String, String> context, Integer status, long startNanos) {
+        write(context, status, startNanos, Map.of());
     }
 }

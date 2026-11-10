@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import co.com.pragma.logging.core.alert.LargeLogAlert;
 import co.com.pragma.logging.core.alert.LogAlertListener;
+import co.com.pragma.logging.core.enrich.LogEnricher;
+import co.com.pragma.logging.core.enrich.LogEnrichment;
+import co.com.pragma.logging.core.enrich.LogField;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskedLogField;
 import java.net.URI;
@@ -36,6 +39,9 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -70,16 +76,60 @@ class StarterIntegrationTest {
         CompletableFuture<String> async() {
             return CompletableFuture.supplyAsync(() -> "later");
         }
+
+        @PostMapping("/orders")
+        Map<String, Object> order(@RequestBody Map<String, Object> order) {
+            log.info("Order received");
+            return Map.of("status", "created", "token", "t-123456");
+        }
+    }
+
+    /** {@code @LogEnrichment} on a class and a method, with a {@link LogField} parameter (ENR-05). */
+    @LogEnrichment("domain=payments")
+    static class PaymentService {
+        private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
+
+        @LogEnrichment("operation=refund")
+        public String refund(@LogField("paymentId") String paymentId) {
+            log.info("Refund started");
+            return "refunded";
+        }
+    }
+
+    @RestController
+    static class PaymentController {
+        private final PaymentService payments;
+
+        PaymentController(PaymentService payments) {
+            this.payments = payments;
+        }
+
+        @GetMapping("/refund/{id}")
+        String refund(@PathVariable("id") String id) {
+            String result = payments.refund(id);
+            LoggerFactory.getLogger(PaymentController.class).info("Refund answered");
+            return result;
+        }
     }
 
     @SpringBootConfiguration
     @EnableAutoConfiguration
-    @Import(LoginController.class)
+    @Import({LoginController.class, PaymentController.class})
     static class TestApp {
 
         @Bean
         RecordingAlertListener recordingAlertListener() {
             return new RecordingAlertListener();
+        }
+
+        @Bean
+        PaymentService paymentService() {
+            return new PaymentService();
+        }
+
+        @Bean
+        LogEnricher regionEnricher() {
+            return event -> event.put("region", "us-east-1");
         }
     }
 
@@ -211,6 +261,61 @@ class StarterIntegrationTest {
             assertThat(log.get("http").get("request").get("id").asString()).isEqualTo("req-l");
             assertThat(log.get("extra").get("http.method").asString()).isEqualTo("GET");
             assertThat(log.get("userId").asString()).isEqualTo("unknown");
+        }
+    }
+
+    @Test
+    @DisplayName("start log, query parameters, all headers but credentials, and masked bodies (ENR-02..04, ENR-08)")
+    void requestLogsWithBodies(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.http.body.enabled=true",
+                "pragma.log.http.request-log.entry=true", "pragma.log.http.query-params=page",
+                "pragma.log.http.headers=*")) {
+            int port = context.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
+            HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port
+                            + "/orders?page=2&token=abc"))
+                    .header("Content-Type", "application/json")
+                    .header("X-Request-Id", "req-b")
+                    .header("X-Client-Id", "web")
+                    .header("Authorization", "Bearer secret-token")
+                    .POST(HttpRequest.BodyPublishers.ofString(
+                            "{\"amount\":10,\"password\":\"p4ss\",\"card\":{\"cvv\":\"123\",\"brand\":\"visa\"}}"))
+                    .build();
+            HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+
+            JsonNode started = jsonLine(output, "HTTP POST /orders started");
+            assertThat(started.get("http.query.page").asString()).isEqualTo("2");
+            assertThat(started.has("http.query.token")).isFalse();
+            assertThat(started.get("http.header.x-client-id").asString()).isEqualTo("web");
+            assertThat(started.has("http.header.authorization")).isFalse();
+            JsonNode done = jsonLine(output, "HTTP POST /orders 200");
+            JsonNode requestBody = done.get("http.request.body");
+            assertThat(requestBody.get("amount").asInt()).isEqualTo(10);
+            assertThat(requestBody.get("password").asString()).matches("\\*+");
+            assertThat(requestBody.get("card").get("cvv").asString()).matches("\\*+");
+            assertThat(requestBody.get("card").get("brand").asString()).isEqualTo("visa");
+            assertThat(done.get("http.response.body").get("status").asString()).isEqualTo("created");
+            assertThat(done.get("http.response.body").get("token").asString()).matches("\\*+");
+            assertThat(output.getOut()).doesNotContain("p4ss").doesNotContain("t-123456").doesNotContain("secret-token");
+        }
+    }
+
+    @Test
+    @DisplayName("@LogEnrichment and @LogField add fields while the method runs; enricher beans add them always (ENR-05, ENR-07)")
+    void enrichment(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start()) {
+            int port = context.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
+            HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port
+                    + "/refund/p-77")).build(), HttpResponse.BodyHandlers.ofString());
+
+            JsonNode inside = jsonLine(output, "Refund started");
+            assertThat(inside.get("domain").asString()).isEqualTo("payments");
+            assertThat(inside.get("operation").asString()).isEqualTo("refund");
+            assertThat(inside.get("paymentId").asString()).isEqualTo("p-77");
+            assertThat(inside.get("region").asString()).isEqualTo("us-east-1");
+            JsonNode after = jsonLine(output, "Refund answered");
+            assertThat(after.has("domain")).isFalse();
+            assertThat(after.has("paymentId")).isFalse();
+            assertThat(after.get("region").asString()).isEqualTo("us-east-1");
         }
     }
 
