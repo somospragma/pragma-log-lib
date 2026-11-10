@@ -283,7 +283,8 @@ Requiere JDK 17 o superior (JDK 21+ para correr Error Prone).
 | **Quality** | Lint con Error Prone (JDK 21, advertencias como error) · Compilación en Java 17 · Tests en Java 17 y 21 con cobertura mínima por módulo (75%; 50% en `pragma-log-quarkus`, que se prueba sobre todo con la app de ejemplo) · Código muerto con PMD · Tests en modo nativo de Quarkus | `./gradlew build boot3Test` |
 | **Security** | Dependencias con OSV-Scanner (lo que cada módulo publica) · Secretos con gitleaks (todo el historial) · SAST con SpotBugs + FindSecBugs | ver abajo |
 | **Build** | Jars, sources, javadoc y POMs de los 7 módulos, como artefacto `maven-artifacts` | `./gradlew publishToMavenLocal -Dmaven.repo.local=$PWD/build/m2` |
-| **Approval + Publish** | Solo con tags `v*`, en el environment `maven-central` (solo admite tags `v*` y guarda los secretos de Sonatype y GPG). Valida que los secretos estén cargados y publica en Maven Central | — |
+| **Approval** | Solo con tags `v*`: abre un issue y espera que alguien de la variable `RELEASE_APPROVERS` comente `approve` (o `deny`); cerrar el issue también rechaza. Expira en 2 horas | — |
+| **Publish** | En el environment `maven-central` (solo admite tags `v*` y guarda los secretos de Sonatype y GPG): valida que los secretos estén cargados y publica en Maven Central | — |
 
 Security en local (con Docker):
 
