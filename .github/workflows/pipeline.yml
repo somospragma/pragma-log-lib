@@ -1,6 +1,6 @@
 name: Pipeline
 
-# Quality (CI) → Security (CI) → Build → Approval + Publish (CD, only for v* tags).
+# Quality (CI) → Security (CI) → Build → Approval + Publish (CD, only for v* tags, approved in the maven-central environment).
 # Actions and images are pinned by digest: a moved tag cannot inject code into the pipeline.
 on:
   push:
@@ -221,37 +221,14 @@ jobs:
           path: build/m2/co/
           if-no-files-found: error
 
-  # ---------------------------------------------------------------- Approval (CD)
-  # Environment reviewers need a paid plan on private repositories, so the approval is an issue: an approver
-  # listed in the RELEASE_APPROVERS variable (comma-separated logins) comments "approve" or "deny".
-  approval:
-    name: Release approval
+  # ---------------------------------------------------------- Approval + Publish (CD)
+  publish:
+    name: Publish to Maven Central
     needs: build
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    timeout-minutes: 120
-    permissions:
-      issues: write
-    steps:
-      - uses: trstringer/manual-approval@fa642940caf8412403569b28b2db4a1df08a83a3 # v1.13.1
-        with:
-          secret: ${{ github.token }}
-          approvers: ${{ vars.RELEASE_APPROVERS }}
-          minimum-approvals: 1
-          issue-title: Publish ${{ github.ref_name }} to Maven Central
-          issue-body: >
-            The pipeline of ${{ github.ref_name }} passed Quality, Security and Build
-            (${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}).
-            Comment "approve" to publish it to Maven Central or "deny" to stop. Expires in 2 hours.
-          close-issue-means-denial: true
-
-  # ---------------------------------------------------------------- Publish (CD)
-  publish:
-    name: Publish to Maven Central
-    needs: approval
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    # Holds the Sonatype and GPG secrets and only accepts v* tags.
+    # Approval: the maven-central environment waits for a required reviewer (Settings → Environments)
+    # and only accepts v* tags. The Sonatype and GPG secrets come from the organization.
     environment: maven-central
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -399,7 +399,7 @@ Requiere JDK 17 o superior (JDK 21+ para correr Error Prone).
 | **Quality** | Lint con Error Prone (JDK 21, advertencias como error) · Compilación en Java 17 · Tests en Java 17 y 21 con cobertura mínima por módulo (75%; 50% en `pragma-log-quarkus`, que se prueba sobre todo con la app de ejemplo) · Código muerto con PMD · Análisis y quality gate de SonarCloud (organización `somospragma`, proyecto `somospragma_pragma-log-lib`) · Tests en modo nativo de Quarkus | `./gradlew build boot3Test` |
 | **Security** | Dependencias con OSV-Scanner (lo que cada módulo publica) · Secretos con gitleaks (todo el historial) · SAST con SpotBugs + FindSecBugs | ver abajo |
 | **Build** | Jars, sources, javadoc y POMs de los 7 módulos, como artefacto `maven-artifacts` | `./gradlew publishToMavenLocal -Dmaven.repo.local=$PWD/build/m2` |
-| **Approval** | Solo con tags `v*`: abre un issue y espera que alguien de la variable `RELEASE_APPROVERS` comente `approve` (o `deny`); cerrar el issue también rechaza. Expira en 2 horas | — |
+| **Approval** | Solo con tags `v*`: el environment `maven-central` espera la aprobación de un revisor (Actions → el run → *Review deployments*) | — |
 | **Publish** | En el environment `maven-central` (solo admite tags `v*`): valida que los secretos y variables estén cargados y publica en Maven Central | — |
 
 Para publicar se usan los secretos de la organización `somospragma` (los mismos que ya publican otras librerías de Pragma) y las variables del environment `maven-central` (Settings → Environments):
@@ -411,7 +411,7 @@ Para publicar se usan los secretos de la organización `somospragma` (los mismos
 | Variable | `MAVEN_GROUP_ID` | Environment | `co.com.pragma.logging` (dentro del namespace verificado `co.com.pragma`) |
 | Variable | `POM_LICENSE_NAME` / `POM_LICENSE_URL` | Environment | Licencia del POM, p. ej. `Apache License 2.0` y su URL |
 
-Los aprobadores del release están en la variable de repositorio `RELEASE_APPROVERS`. Para publicar: actualiza [CHANGELOG.md](CHANGELOG.md), crea el tag (`git tag v1.0.0 && git push origin v1.0.0`) y comenta `approve` en el issue que abre el pipeline.
+Los aprobadores son los *required reviewers* del environment `maven-central`. Para publicar: actualiza [CHANGELOG.md](CHANGELOG.md), crea el tag (`git tag vX.Y.Z && git push origin vX.Y.Z`) y aprueba el despliegue en el run del pipeline (*Review deployments*).
 
 Security en local (con Docker):
 
