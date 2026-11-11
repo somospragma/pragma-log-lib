@@ -2,6 +2,9 @@
 // Organization and project key come from the environment so the pipeline decides where to report.
 plugins {
     alias(libs.plugins.sonarqube)
+    // Loaded once here so every module shares the same Maven Central build service; otherwise modules that
+    // add their own plugins (Quarkus) get a second copy and publishing fails.
+    id("pragma.publishing") apply false
 }
 
 sonar {
