@@ -2,6 +2,7 @@
 // then: curl -H 'X-Request-Id: req-1' localhost:8080/customers/1
 plugins {
     java
+    jacoco // its coverage of pragma-log-quarkus is added to that module's report, for SonarCloud
     alias(libs.plugins.quarkus)
 }
 

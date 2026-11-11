@@ -12,9 +12,16 @@ Cada release es un tag `vX.Y.Z` sobre la rama principal: el pipeline lo construy
 
 ### Agregado
 
+- Build: Gradle verifica el SHA-256 de cada dependencia y plugin contra `gradle/verification-metadata.xml`.
+
 ### Cambiado
 
+- Build: la cobertura mínima por módulo sube de 75% a 80%, como el quality gate de SonarCloud, y la cobertura de los tests de `examples/quarkus` cuenta para los módulos de Quarkus.
+- Quarkus: el interceptor de `@LogEnrichment` y la captura de bodies reciben sus dependencias por constructor.
+
 ### Corregido
+
+- Spring Boot: dos recargas de configuración en caliente al mismo tiempo podían dejar un encoder sin detener. Ahora el cambio de encoder es atómico.
 
 ## [1.0.1] - 2026-11-11
 

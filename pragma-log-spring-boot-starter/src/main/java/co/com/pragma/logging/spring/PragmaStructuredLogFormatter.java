@@ -6,6 +6,7 @@ import ch.qos.logback.core.ContextBase;
 import co.com.pragma.logging.logback.PragmaStructuredEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.logging.structured.StructuredLogFormatter;
 import org.springframework.core.env.Environment;
@@ -21,29 +22,27 @@ public final class PragmaStructuredLogFormatter implements StructuredLogFormatte
         PragmaLogReloader.Reloadable {
 
     private final Environment environment;
-    private volatile PragmaStructuredEncoder encoder;
+    private final AtomicReference<PragmaStructuredEncoder> encoder;
 
     public PragmaStructuredLogFormatter(Environment environment) {
         this.environment = environment;
-        this.encoder = PragmaEncoderFactory.structured(environment, logbackContext());
+        this.encoder = new AtomicReference<>(PragmaEncoderFactory.structured(environment, logbackContext()));
         PragmaLogReloader.register(this);
     }
 
     @Override
     public void reload() {
-        PragmaStructuredEncoder previous = encoder;
-        encoder = PragmaEncoderFactory.structured(environment, logbackContext());
-        previous.stop();
+        encoder.getAndSet(PragmaEncoderFactory.structured(environment, logbackContext())).stop();
     }
 
     @Override
     public String format(ILoggingEvent event) {
-        return new String(encoder.encode(event), StandardCharsets.UTF_8);
+        return new String(encoder.get().encode(event), StandardCharsets.UTF_8);
     }
 
     @Override
     public byte[] formatAsBytes(ILoggingEvent event, Charset charset) {
-        byte[] bytes = encoder.encode(event);
+        byte[] bytes = encoder.get().encode(event);
         return StandardCharsets.UTF_8.equals(charset) ? bytes : new String(bytes, StandardCharsets.UTF_8).getBytes(charset);
     }
 

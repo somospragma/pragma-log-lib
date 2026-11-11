@@ -71,7 +71,7 @@ tasks.register("resolveShippedDependencies") {
 // Minimum line coverage of each module's unit tests. A module may lower it with
 // extra["minLineCoverage"] = "0.50" when its code is mainly tested elsewhere (e.g. the Quarkus example app).
 tasks.withType<JacocoCoverageVerification>().configureEach {
-    val minimum = (project.findProperty("minLineCoverage") as String? ?: "0.75").toBigDecimal()
+    val minimum = (project.findProperty("minLineCoverage") as String? ?: "0.80").toBigDecimal() // SonarCloud's quality gate asks 80%
     violationRules {
         rule {
             limit {
