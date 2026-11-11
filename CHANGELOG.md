@@ -63,7 +63,7 @@ Reescritura completa de la librería (rama `v2`). No es compatible con la v1: ve
 - Java puro con Logback, Spring Boot 3.5 y 4.x (MVC y WebFlux), Quarkus 3.33+ (también en modo nativo).
 
 **Calidad y seguridad**
-- Pipeline con lint (Error Prone), tests en Java 17 y 21, cobertura mínima, código muerto (PMD), SAST (SpotBugs + FindSecBugs), dependencias (OSV-Scanner), secretos (gitleaks), tests nativos y publicación con aprobación.
+- Pipeline con lint (Error Prone), tests en Java 17 y 21, cobertura mínima, código muerto (PMD), SonarCloud con quality gate, SAST (SpotBugs + FindSecBugs), dependencias (OSV-Scanner), secretos (gitleaks), tests nativos y publicación con aprobación.
 - Escaneo semanal de vulnerabilidades con Dependabot e issue automático.
 
 ### Migración desde la v1

@@ -19,6 +19,7 @@ pmd = "7.29.0"
 spotbugs = "4.10.5"
 spotbugs-plugin = "6.5.13"
 findsecbugs = "1.14.0"
+sonarqube = "7.5.0.8588"
 
 [libraries]
 quarkus-bom = { module = "io.quarkus:quarkus-bom", version.ref = "quarkus" }
@@ -66,5 +67,6 @@ errorprone-core = { module = "com.google.errorprone:error_prone_core", version.r
 findsecbugs = { module = "com.h3xstream.findsecbugs:findsecbugs-plugin", version.ref = "findsecbugs" }
 
 [plugins]
+sonarqube = { id = "org.sonarqube", version.ref = "sonarqube" }
 quarkus = { id = "io.quarkus", version.ref = "quarkus" }
 quarkus-extension = { id = "io.quarkus.extension", version.ref = "quarkus" }
