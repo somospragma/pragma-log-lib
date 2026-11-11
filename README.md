@@ -287,10 +287,11 @@ Los valores simples se escriben tal cual y los objetos como JSON enmascarado. Al
 Con logging asíncrono la llamada `log.info(...)` vuelve de inmediato y otro hilo enmascara, formatea y escribe el log.
 
 - **Spring Boot:** `pragma.log.async.enabled: true`. Envuelve los appenders de consola y archivo de Spring Boot. Opciones: `queue-size` (8192), `never-block` (false) y `max-flush-time` (5s).
-- **Java puro:** `PragmaAsyncAppender` en `logback.xml`, con `<appender-ref>` al appender real.
-- **Quarkus:** usa el async propio de Quarkus (`quarkus.log.console.async=true`, `quarkus.log.file.async=true`); el formato de pragma-log se aplica igual.
+- **Java puro:** `PragmaAsyncAppender` en `logback.xml`, con `<appender-ref>` al appender real y `<shutdownHook/>` en `<configuration>` (sin él, los logs pendientes se pierden al terminar la app).
+- **Quarkus:** usa el async propio de Quarkus (`quarkus.log.console.async.enabled=true`, `quarkus.log.file.async.enabled=true`); el formato de pragma-log se aplica igual.
 
 ```xml
+<shutdownHook/>
 <appender name="ASYNC" class="co.com.pragma.logging.logback.PragmaAsyncAppender">
   <appender-ref ref="CONSOLE"/>
 </appender>
