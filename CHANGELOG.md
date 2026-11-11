@@ -18,7 +18,7 @@ Cada release es un tag `vX.Y.Z` sobre la rama principal: el pipeline lo construy
 
 ## [1.0.0] - 2026-11-11
 
-Reescritura completa de la librería (rama `v2`). No es compatible con la v1: ver "Migración desde la v1" más abajo.
+Reescritura completa de la librería. No es compatible con la v1: ver "Migración desde la v1" más abajo.
 
 ### Agregado
 

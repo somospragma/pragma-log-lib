@@ -4,7 +4,7 @@ name: Pipeline
 # Actions and images are pinned by digest: a moved tag cannot inject code into the pipeline.
 on:
   push:
-    branches: [main, v2]
+    branches: [main]
     tags: ['v*']
   pull_request:
   workflow_dispatch:

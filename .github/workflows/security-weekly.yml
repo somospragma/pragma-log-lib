@@ -5,7 +5,7 @@ name: Weekly security scan
 #   (GitHub only raises them for the default branch).
 # - OSV-Scanner checks what each published module ships and keeps one issue labeled "security" up to date:
 #   opened or updated when something is found, closed when everything is clean.
-# Scheduled workflows run from the default branch only; until v2 replaces main, SCAN_REF points at v2.
+# Scheduled workflows run from the default branch only (main), which is the branch scanned.
 on:
   schedule:
     - cron: '0 12 * * 1' # Mondays 12:00 UTC (07:00 Bogotá)
@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  SCAN_REF: v2
+  SCAN_REF: main
   OSV_SCANNER_IMAGE: ghcr.io/google/osv-scanner@sha256:6421cdd773a54fad5fd991895b4f3840beba55a2f30a8182185919e13979a2c8 # v2.3.0
   ISSUE_TITLE: Vulnerable dependencies (weekly scan)
 
