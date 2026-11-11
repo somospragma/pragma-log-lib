@@ -402,14 +402,14 @@ Requiere JDK 17 o superior (JDK 21+ para correr Error Prone).
 | **Approval** | Solo con tags `v*`: abre un issue y espera que alguien de la variable `RELEASE_APPROVERS` comente `approve` (o `deny`); cerrar el issue también rechaza. Expira en 2 horas | — |
 | **Publish** | En el environment `maven-central` (solo admite tags `v*`): valida que los secretos y variables estén cargados y publica en Maven Central | — |
 
-Para publicar, el environment `maven-central` (Settings → Environments) necesita:
+Para publicar se usan los secretos de la organización `somospragma` (los mismos que ya publican otras librerías de Pragma) y las variables del environment `maven-central` (Settings → Environments):
 
-| Tipo | Nombre | Qué va |
-|---|---|---|
-| Secreto | `MAVEN_CENTRAL_USERNAME` / `MAVEN_CENTRAL_PASSWORD` | Token de usuario del portal de Sonatype (Central Portal → Generate User Token) |
-| Secreto | `SIGNING_KEY` / `SIGNING_KEY_PASSWORD` | Llave GPG privada en ASCII armor (`gpg --armor --export-secret-keys <id>`) y su contraseña |
-| Variable | `MAVEN_GROUP_ID` | El namespace verificado en Maven Central, p. ej. `com.pragma.logging` |
-| Variable | `POM_LICENSE_NAME` / `POM_LICENSE_URL` | Licencia del POM, p. ej. `Apache License 2.0` y su URL |
+| Tipo | Nombre | Dónde | Qué va |
+|---|---|---|---|
+| Secreto | `OSSRH_USERNAME` / `OSSRH_PASSWORD` | Organización | Token de usuario de Maven Central (namespace `co.com.pragma`) |
+| Secreto | `GPG_PRIVATE_KEY` / `GPG_PASSPHRASE` | Organización | Llave GPG de Pragma para firmar los artefactos y su contraseña |
+| Variable | `MAVEN_GROUP_ID` | Environment | `co.com.pragma.logging` (dentro del namespace verificado `co.com.pragma`) |
+| Variable | `POM_LICENSE_NAME` / `POM_LICENSE_URL` | Environment | Licencia del POM, p. ej. `Apache License 2.0` y su URL |
 
 Los aprobadores del release están en la variable de repositorio `RELEASE_APPROVERS`. Para publicar: actualiza [CHANGELOG.md](CHANGELOG.md), crea el tag (`git tag v1.0.0 && git push origin v1.0.0`) y comenta `approve` en el issue que abre el pipeline.
 
