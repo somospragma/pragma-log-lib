@@ -58,6 +58,25 @@ class StarterIntegrationTest {
             String password) {
     }
 
+    record Contact(@MaskedLogField(type = MaskType.MIDDLE, length = 2) String phone, String city) {
+    }
+
+    record Profile(String name, @MaskedLogField(type = MaskType.MIDDLE, length = 4) String cardNumber,
+            @MaskedLogField(type = MaskType.HIDDEN) String cvv, Contact contact) {
+    }
+
+    record Transfer(@MaskedLogField(type = MaskType.CUSTOM, strategy = "iban") String account, int amount) {
+    }
+
+    /** Keeps the country and the last four characters. */
+    public static class IbanMasking implements co.com.pragma.logging.core.masking.MaskingStrategy {
+        @Override
+        public String mask(String value, char maskChar, int length) {
+            return value.substring(0, 2) + String.valueOf(maskChar).repeat(value.length() - 6)
+                    + value.substring(value.length() - 4);
+        }
+    }
+
     @RestController
     static class LoginController {
         private static final Logger log = LoggerFactory.getLogger(LoginController.class);
@@ -66,6 +85,11 @@ class StarterIntegrationTest {
         String login() {
             log.info("Login {}", new Customer("Ana", "4111111111111111", "s3cr3t"));
             return "ok";
+        }
+
+        @GetMapping("/profile")
+        Profile profile() {
+            return new Profile("Ana", "4111111111111111", "321", new Contact("3001234567", "Bogota"));
         }
 
         @GetMapping("/boom")
@@ -95,6 +119,11 @@ class StarterIntegrationTest {
             log.info("Refund started");
             return "refunded";
         }
+
+        @LogEnrichment
+        public void transfer(@LogField("transfer") Transfer transfer) {
+            log.info("Transfer sent");
+        }
     }
 
     @RestController
@@ -107,6 +136,7 @@ class StarterIntegrationTest {
 
         @GetMapping("/refund/{id}")
         String refund(@PathVariable("id") String id) {
+            payments.transfer(new Transfer("CO12345678901234567890", 10));
             String result = payments.refund(id);
             LoggerFactory.getLogger(PaymentController.class).info("Refund answered");
             return result;
@@ -317,6 +347,52 @@ class StarterIntegrationTest {
             assertThat(after.has("domain")).isFalse();
             assertThat(after.has("paymentId")).isFalse();
             assertThat(after.get("region").asString()).isEqualTo("us-east-1");
+        }
+    }
+
+    @Test
+    @DisplayName("@LogField objects use the custom mask strategies, like the encoder")
+    void logFieldUsesCustomStrategies(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start(
+                "pragma.log.masking.strategies.iban=" + IbanMasking.class.getName())) {
+            int port = context.getEnvironment().getRequiredProperty("local.server.port", Integer.class);
+            HttpClient.newHttpClient().send(HttpRequest.newBuilder(URI.create("http://localhost:" + port
+                    + "/refund/p-78")).build(), HttpResponse.BodyHandlers.ofString());
+
+            JsonNode sent = jsonLine(output, "Transfer sent");
+            assertThat(sent.get("transfer").toString()).contains("CO****************7890");
+            assertThat(output.getOut()).doesNotContain("CO12345678901234567890");
+        }
+    }
+
+    @Test
+    @DisplayName("the response body is the returned object, masked by its annotations (ENR-04)")
+    void responseBodyUsesAnnotations(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.http.body.enabled=true")) {
+            send(context, "/profile", "req-pr");
+
+            JsonNode body = jsonLine(output, "HTTP GET /profile 200").get("http.response.body");
+            assertThat(body.get("name").asString()).isEqualTo("Ana");
+            assertThat(body.get("cardNumber").asString()).isEqualTo("4111********1111");
+            assertThat(body.has("cvv")).isFalse();
+            assertThat(body.get("contact").get("phone").asString()).isEqualTo("30******67");
+            assertThat(body.get("contact").get("city").asString()).isEqualTo("Bogota");
+            assertThat(output.getOut()).doesNotContain("3001234567").doesNotContain("4111111111111111");
+        }
+    }
+
+    @Test
+    @DisplayName("an unhandled exception is logged with the request context in the completion log")
+    void unhandledExceptionKeepsRequestContext(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start()) {
+            get(context, "req-ok");
+            send(context, "/boom", "req-e");
+
+            JsonNode failed = jsonLine(output, "HTTP GET /boom 500");
+            assertThat(failed.get("level").asString()).isEqualTo("ERROR");
+            assertThat(failed.get("requestId").asString()).isEqualTo("req-e");
+            assertThat(failed.toString()).contains("IllegalStateException").contains("boom");
+            assertThat(jsonLine(output, "HTTP GET /login").get("level").asString()).isEqualTo("INFO");
         }
     }
 

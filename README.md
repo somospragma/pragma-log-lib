@@ -2,7 +2,7 @@
 
 Librería de logging estructurado para servicios Java de Pragma. Sigues usando SLF4J (`log.info(...)`) y la librería produce logs JSON homogéneos, enriquecidos y con datos sensibles enmascarados.
 
-> **Versión actual:** `1.0.0` en Maven Central (`co.com.pragma.logging`). Licencia [Apache 2.0](LICENSE).
+> **Versión actual:** `1.0.1` en Maven Central (`co.com.pragma.logging`). Licencia [Apache 2.0](LICENSE).
 > **Documentación completa:** [Pragma Hub](https://somospragma.github.io/backend-architecture-design-site-docs/artifacts/pragma-log/), con guías por framework y la referencia de todas las opciones.
 > Requerimientos y decisiones: [docs/relanzamiento](docs/relanzamiento/).
 
@@ -12,7 +12,7 @@ Solo la dependencia. No hace falta `logback-spring.xml`:
 
 ```kotlin
 dependencies {
-    implementation("co.com.pragma.logging:pragma-log-spring-boot-starter:1.0.0")
+    implementation("co.com.pragma.logging:pragma-log-spring-boot-starter:1.0.1")
 }
 ```
 
@@ -89,7 +89,7 @@ Solo la dependencia:
 
 ```kotlin
 dependencies {
-    implementation("co.com.pragma.logging:pragma-log-quarkus:1.0.0")
+    implementation("co.com.pragma.logging:pragma-log-quarkus:1.0.1")
 }
 ```
 
@@ -117,7 +117,7 @@ pragma.log.timestamp.zone=America/Bogota
 
 ```kotlin
 dependencies {
-    implementation("co.com.pragma.logging:pragma-log-logback:1.0.0")
+    implementation("co.com.pragma.logging:pragma-log-logback:1.0.1")
 }
 ```
 
@@ -210,6 +210,8 @@ Las anotaciones y los nombres no ven datos metidos dentro de un texto (`"cobrado
 | `JWT` | El token completo | `********` |
 | una regex | Lo que coincida; si tiene un grupo, solo el grupo: `password=(\S+)` | `password=*******` |
 
+En el `application.properties` de Quarkus cada `\` de una regex de la lista se escribe `\\\\`: `pragma.log.masking.patterns=CARD,password=(\\\\S+)`. El convertidor de listas de Quarkus consume un nivel de escape más que el de un valor simple.
+
 Cada patrón recorre todos los logs, así que mantén la lista corta. Está apagado por defecto.
 
 - `max-field-length`: corta el mensaje y cada valor de texto largo con `...[truncated N chars]`. Primero se enmascara y después se corta, así ningún pedazo de un secreto queda visible. El stack trace tiene su propio límite.
@@ -256,8 +258,8 @@ Cuando se loguea una excepción, además del `stacktrace` sale un resumen fácil
 {"message":"HTTP POST /orders 200 in 35 ms","http.request.body":{"amount":10,"password":"****"},"http.response.body":{"status":"created","token":"*****"},...}
 ```
 
-- Los bodies JSON y de formulario se convierten en objetos y se enmascaran como cualquier objeto logueado: por nombre de campo a cualquier profundidad y por patrones. En Quarkus la respuesta es el objeto que retorna el endpoint, así que también aplican sus `@MaskedLogField`. Otros textos (XML, texto plano) solo pasan por los patrones.
-- Se guardan los primeros `max-size` bytes (4 KB por defecto); el resto se corta con `...[truncated N bytes]`. Los bodies se copian a medida que pasan, sin leerlos por adelantado ni guardarlos completos en memoria. Solo se capturan los tipos de `content-types` (JSON, formularios, XML, `text/*`); nunca binarios.
+- Los bodies JSON y de formulario se convierten en objetos y se enmascaran como cualquier objeto logueado: por nombre de campo a cualquier profundidad y por patrones. La respuesta es el objeto que retorna el endpoint (`@RestController` en Spring MVC y WebFlux, Quarkus REST), así que también aplican sus `@MaskedLogField`; si el endpoint retorna un `Flux`, se loguean sus primeros 100 elementos. Otros textos (XML, texto plano) solo pasan por los patrones.
+- De los bodies que se loguean como bytes se guardan los primeros `max-size` bytes (4 KB por defecto); el resto se corta con `...[truncated N bytes]`. Los bodies se copian a medida que pasan, sin leerlos por adelantado ni guardarlos completos en memoria. Solo se capturan los tipos de `content-types` (JSON, formularios, XML, `text/*`); nunca binarios.
 - En Quarkus aplica a los endpoints de Quarkus REST.
 
 **Enrichers.** Para agregar campos propios a todos los logs, implementa `LogEnricher` (`event.put("tenantId", ...)`). Regístralo como bean de Spring o CDI, en `enrichers` con el nombre de la clase, o con `LogEnrichers.register(...)`. Sus campos se enmascaran como los key-values, y un MDC o key-value con el mismo nombre gana.
@@ -278,7 +280,7 @@ Los valores simples se escriben tal cual y los objetos como JSON enmascarado. Al
 
 ## Cambios de configuración en caliente y advertencias
 
-**Sin reiniciar.** En Spring Boot, los cambios a `pragma.log.*` se aplican solos cuando Spring Cloud publica un `EnvironmentChangeEvent` (endpoint `refresh`, ConfigMaps de Kubernetes, Config Server). Si cambias el `Environment` de otra forma, llama `PragmaLogReloader.reload()` (es un bean). Aplica a masking, campos, distribución, alertas, stack trace, timestamp y contexto HTTP; pasar de `plain` a un formato estructurado sigue pidiendo reinicio. Si la configuración nueva es inválida, se mantiene la anterior y se avisa por la salida de error. En Java puro usa `<configuration scan="true">` en `logback.xml`: Logback relee el archivo y crea encoders nuevos. Quarkus no relee su configuración en caliente.
+**Sin reiniciar.** En Spring Boot, los cambios a `pragma.log.*` se aplican solos cuando Spring Cloud publica un `EnvironmentChangeEvent` (endpoint `refresh`, ConfigMaps de Kubernetes, Config Server). Si cambias el `Environment` de otra forma, llama `PragmaLogReloader.reload()` (es un bean). Aplica a masking, campos, distribución, alertas, stack trace, timestamp y contexto HTTP; pasar de `plain` a un formato estructurado sigue pidiendo reinicio. Si la configuración nueva es inválida, se mantiene la anterior y se avisa por la salida de error. En Java puro usa `<configuration scan="true">` en un `logback.xml` que esté en disco (`-Dlogback.configurationFile=/ruta/logback.xml`): Logback relee el archivo y crea encoders nuevos. Si el archivo va dentro del jar, `scan` no sirve: Logback no puede vigilarlo y lo avisa al arrancar. Quarkus no relee su configuración en caliente.
 
 **Advertencias.** Al arrancar se avisa, una sola vez y sin detener la app, de combinaciones que no hacen lo que parecen. Algunos ejemplos: `json.pretty` con otro formato o en producción, `csv.*` sin `format: csv`, `alerts.truncate` sin `max-log-size`, un campo obligatorio que también está oculto, dos campos renombrados al mismo nombre, `masking.enabled: false` con patrones o bodies, `masking.fields: []`, o `http.headers: "*"` sin `exclude-headers`. En Spring salen por la salida de error, en Quarkus como WARN y en `logback.xml` en el estado de Logback.
 

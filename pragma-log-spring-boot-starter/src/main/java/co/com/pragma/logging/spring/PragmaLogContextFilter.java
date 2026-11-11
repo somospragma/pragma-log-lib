@@ -50,17 +50,23 @@ public class PragmaLogContextFilter extends OncePerRequestFilter {
                 ? new CapturingResponseWrapper(response, bodies.maxSize())
                 : null;
 
+        ResponseBodyObject responseObject = capturedResponse != null ? new ResponseBodyObject() : null;
+        if (responseObject != null) {
+            request.setAttribute(ResponseBodyObject.ATTRIBUTE, responseObject);
+        }
         Map<String, String> previous = RequestLogContext.putInMdc(context);
-        boolean failed = true;
+        Throwable error = null;
         try {
             chain.doFilter(capturedRequest != null ? capturedRequest : request,
                     capturedResponse != null ? capturedResponse : response);
-            failed = false;
+        } catch (IOException | ServletException | RuntimeException | Error e) {
+            error = e;
+            throw e;
         } finally {
             try {
                 if (logged) {
-                    logCompletion(request, response, context, start, failed, completionLog, bodies, capturedRequest,
-                            capturedResponse);
+                    logCompletion(request, response, context, start, cause(error), completionLog, bodies,
+                            capturedRequest, capturedResponse, responseObject);
                 }
             } finally {
                 RequestLogContext.restoreMdc(previous);
@@ -68,16 +74,22 @@ public class PragmaLogContextFilter extends OncePerRequestFilter {
         }
     }
 
+    /** The exception thrown by the application, without the wrapper the dispatcher servlet adds. */
+    private static Throwable cause(Throwable error) {
+        return error instanceof ServletException servlet && servlet.getCause() != null ? servlet.getCause() : error;
+    }
+
     private static void logCompletion(HttpServletRequest request, HttpServletResponse response,
-            Map<String, String> context, long start, boolean failed, RequestCompletionLog completionLog,
-            HttpBodyCapture bodies, CapturingRequestWrapper capturedRequest, CapturingResponseWrapper capturedResponse) {
+            Map<String, String> context, long start, Throwable error, RequestCompletionLog completionLog,
+            HttpBodyCapture bodies, CapturingRequestWrapper capturedRequest, CapturingResponseWrapper capturedResponse,
+            ResponseBodyObject responseObject) {
         if (request.isAsyncStarted()) {
             // DeferredResult, Callable, streaming: the status is known only when the async processing ends.
             request.getAsyncContext().addListener(new AsyncListener() {
                 @Override
                 public void onComplete(AsyncEvent event) {
                     completionLog.write(context, response.getStatus(), start,
-                            bodies(bodies, response, capturedRequest, capturedResponse));
+                            bodies(bodies, response, capturedRequest, capturedResponse, responseObject));
                 }
 
                 @Override
@@ -94,14 +106,16 @@ public class PragmaLogContextFilter extends OncePerRequestFilter {
             });
         } else {
             // An exception that escapes the filter chain becomes a 500 in the error page, after this filter.
-            int status = failed && response.getStatus() < 500 ? 500 : response.getStatus();
-            completionLog.write(context, status, start, bodies(bodies, response, capturedRequest, capturedResponse));
+            int status = error != null && response.getStatus() < 500 ? 500 : response.getStatus();
+            completionLog.write(context, status, start,
+                    bodies(bodies, response, capturedRequest, capturedResponse, responseObject), error);
         }
     }
 
     /** The captured bodies, as key-values the encoder masks; empty when nothing was captured. */
     private static Map<String, Object> bodies(HttpBodyCapture bodies, HttpServletResponse response,
-            CapturingRequestWrapper capturedRequest, CapturingResponseWrapper capturedResponse) {
+            CapturingRequestWrapper capturedRequest, CapturingResponseWrapper capturedResponse,
+            ResponseBodyObject responseObject) {
         Map<String, Object> captured = new LinkedHashMap<>();
         if (capturedRequest != null) {
             BodyBuffer body = capturedRequest.body();
@@ -111,8 +125,10 @@ public class PragmaLogContextFilter extends OncePerRequestFilter {
         if (capturedResponse != null && bodies.captures(response.getContentType())) {
             capturedResponse.flushWriter();
             BodyBuffer body = capturedResponse.body();
+            Object object = responseObject != null ? responseObject.value() : null;
+            // The returned object is masked by its annotations; its bytes only by field names and patterns.
             putIfPresent(captured, HttpLogContext.RESPONSE_BODY,
-                    bodies.value(body.bytes(), body.total(), response.getContentType()));
+                    object != null ? object : bodies.value(body.bytes(), body.total(), response.getContentType()));
         }
         return captured;
     }

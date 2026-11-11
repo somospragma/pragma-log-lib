@@ -56,10 +56,23 @@ final class RequestCompletionLog {
      * @param bodies      captured bodies by key-value name; values are masked by the encoder
      */
     void write(Map<String, String> context, Integer status, long startNanos, Map<String, Object> bodies) {
+        write(context, status, startNanos, bodies, null);
+    }
+
+    /**
+     * Same as {@link #write(Map, Integer, long, Map)}; when the request failed with a server error, the log is an
+     * ERROR with the exception, so the stack trace of an unhandled exception carries the request context. The
+     * container writes its own log of that exception after the request context is gone.
+     *
+     * @param error the exception that ended the request, or {@code null}
+     */
+    void write(Map<String, String> context, Integer status, long startNanos, Map<String, Object> bodies,
+            Throwable error) {
         long durationMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
         Map<String, String> previous = RequestLogContext.putInMdc(context);
         try {
-            var event = log.atInfo();
+            boolean failed = error != null && (status == null || status >= 500);
+            var event = failed ? log.atError().setCause(error) : log.atInfo();
             if (status != null) {
                 event = event.addKeyValue(HttpLogContext.HTTP_STATUS, status);
             }

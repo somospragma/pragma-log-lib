@@ -47,6 +47,13 @@ import tools.jackson.databind.json.JsonMapper;
 @ExtendWith(OutputCaptureExtension.class)
 class WebFluxIntegrationTest {
 
+    record Profile(String name,
+            @co.com.pragma.logging.core.masking.MaskedLogField(
+                    type = co.com.pragma.logging.core.masking.MaskType.MIDDLE, length = 4) String cardNumber,
+            @co.com.pragma.logging.core.masking.MaskedLogField(
+                    type = co.com.pragma.logging.core.masking.MaskType.HIDDEN) String cvv) {
+    }
+
     @RestController
     static class OrderController {
         private static final Logger log = LoggerFactory.getLogger(OrderController.class);
@@ -60,6 +67,18 @@ class WebFluxIntegrationTest {
                         log.info("Order loaded {}", value);
                         return value;
                     });
+        }
+
+        @GetMapping("/profile")
+        Mono<Profile> profile() {
+            return Mono.just(new Profile("Ana", "4111111111111111", "321"))
+                    .delayElement(Duration.ofMillis(5));
+        }
+
+        @GetMapping("/profiles")
+        reactor.core.publisher.Flux<Profile> profiles() {
+            return reactor.core.publisher.Flux.just(new Profile("Ana", "4111111111111111", "321"),
+                    new Profile("Bo", "5500000000000004", "654"));
         }
 
         @GetMapping("/missing-order")
@@ -252,6 +271,11 @@ class WebFluxIntegrationTest {
             JsonNode failed = jsonLines(output, "HTTP GET /failing-order ").get(0);
             assertThat(failed.get("http.status").asInt()).isEqualTo(500);
             assertThat(failed.get("requestId").asString()).isEqualTo("req-5");
+            // The unhandled exception is logged with the request context; a 404 is not an error.
+            assertThat(failed.get("level").asString()).isEqualTo("ERROR");
+            assertThat(failed.toString()).contains("IllegalStateException");
+            assertThat(jsonLines(output, "HTTP GET /missing-order ").get(0).get("level").asString())
+                    .isEqualTo("INFO");
         }
     }
 
@@ -276,6 +300,24 @@ class WebFluxIntegrationTest {
             assertThat(done.get("http.response.body").get("status").asString()).isEqualTo("paid");
             assertThat(done.get("http.response.body").get("token").asString()).matches("\\*+");
             assertThat(output.getOut()).doesNotContain("4111111111111111").doesNotContain("t-987654");
+        }
+    }
+
+    @Test
+    @DisplayName("the response body is the returned object, masked by its annotations (ENR-04)")
+    void responseBodyUsesAnnotations(CapturedOutput output) throws Exception {
+        try (ConfigurableApplicationContext context = start("pragma.log.http.body.enabled=true")) {
+            getPath(context, "/profile", "req-pr").join();
+            getPath(context, "/profiles", "req-prs").join();
+
+            JsonNode one = jsonLines(output, "HTTP GET /profile 200").get(0).get("http.response.body");
+            assertThat(one.get("cardNumber").asString()).isEqualTo("4111********1111");
+            assertThat(one.has("cvv")).isFalse();
+            JsonNode many = jsonLines(output, "HTTP GET /profiles 200").get(0).get("http.response.body");
+            assertThat(many.size()).isEqualTo(2);
+            assertThat(many.get(1).get("cardNumber").asString()).isEqualTo("5500********0004");
+            assertThat(output.getOut()).doesNotContain("4111111111111111").doesNotContain("5500000000000004")
+                    .doesNotContain("\"321\"");
         }
     }
 

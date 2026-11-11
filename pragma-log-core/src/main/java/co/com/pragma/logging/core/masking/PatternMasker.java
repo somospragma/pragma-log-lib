@@ -30,7 +30,11 @@ public final class PatternMasker {
     private static final int FIXED_MASK_LENGTH = 8;
 
     private static final Pattern CARD = Pattern.compile("(?<![\\d-])\\d(?:[ -]?\\d){12,18}(?![\\d-])");
-    private static final Pattern EMAIL = Pattern.compile("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}");
+    /*
+     * Starts only where a local part starts and never gives characters back, so a long text with no '@' is scanned
+     * once; nested or backtracking quantifiers here cost quadratic time. The domain is validated in maskEmail.
+     */
+    private static final Pattern EMAIL = Pattern.compile("(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]++@[A-Za-z0-9.-]++");
     private static final Pattern JWT = Pattern.compile("eyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]*");
 
     private record Rule(Pattern pattern, UnaryOperator<String> replace, boolean group) {
@@ -155,8 +159,33 @@ public final class PatternMasker {
         return sum % 10 == 0;
     }
 
+    /** Masks the local part when the domain is valid; dots or dashes that end a sentence are not the domain. */
     private static String maskEmail(String email, char maskChar) {
         int at = email.indexOf('@');
+        int end = email.length();
+        while (end > at + 1 && (email.charAt(end - 1) == '.' || email.charAt(end - 1) == '-')) {
+            end--;
+        }
+        String domain = email.substring(at + 1, end);
+        if (!validDomain(domain)) {
+            return email;
+        }
         return email.charAt(0) + String.valueOf(maskChar).repeat(Math.max(at - 1, 0)) + email.substring(at);
+    }
+
+    /** Labels of letters, digits or dashes separated by dots, ending in a top-level domain of 2 to 63 letters. */
+    private static boolean validDomain(String domain) {
+        int lastDot = domain.lastIndexOf('.');
+        if (lastDot <= 0 || domain.contains("..") || domain.length() - lastDot - 1 < 2
+                || domain.length() - lastDot - 1 > 63) {
+            return false;
+        }
+        for (int i = lastDot + 1; i < domain.length(); i++) {
+            char c = domain.charAt(i);
+            if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))) {
+                return false;
+            }
+        }
+        return true;
     }
 }

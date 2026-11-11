@@ -4,6 +4,8 @@ import co.com.pragma.logging.core.enrich.LogEnrichment;
 import co.com.pragma.logging.core.masking.LogMasker;
 import co.com.pragma.logging.core.masking.MaskType;
 import co.com.pragma.logging.core.masking.MaskingSettings;
+import co.com.pragma.logging.core.masking.MaskingStrategy;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -51,10 +53,28 @@ class LogEnrichmentConfiguration {
                     MaskType.valueOf(masking.getDefaultType().trim().toUpperCase(Locale.ROOT)),
                     masking.getDefaultLength(),
                     masking.getFields() == null ? MaskingSettings.DEFAULT_FIELDS : Set.copyOf(masking.getFields()),
-                    masking.getMaxDepth(), Map.of());
+                    masking.getMaxDepth(), strategies(masking.getStrategies()));
         } catch (RuntimeException e) {
             return MaskingSettings.defaults();
         }
+    }
+
+    /** The custom strategies, so {@code @LogField} values with {@code MaskType.CUSTOM} use them like the encoder. */
+    private static Map<String, MaskingStrategy> strategies(Map<String, String> classNames) {
+        Map<String, MaskingStrategy> strategies = new LinkedHashMap<>();
+        if (classNames == null) {
+            return strategies;
+        }
+        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+        classNames.forEach((name, className) -> {
+            try {
+                Class<?> type = Class.forName(className.trim(), true, classLoader);
+                strategies.put(name, (MaskingStrategy) type.getDeclaredConstructor().newInstance());
+            } catch (ReflectiveOperationException | ClassCastException | LinkageError e) {
+                throw new IllegalArgumentException("cannot load mask strategy " + name + "=" + className, e);
+            }
+        });
+        return strategies;
     }
 
     /** Makes sure an auto-proxy creator exists, also without Spring Boot's AOP auto-configuration. */

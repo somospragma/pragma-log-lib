@@ -55,6 +55,8 @@ micrometer-tracing-bridge-brave = { module = "io.micrometer:micrometer-tracing-b
 reactor-core = { module = "io.projectreactor:reactor-core" }
 context-propagation = { module = "io.micrometer:context-propagation", version.ref = "context-propagation" }
 spring-web = { module = "org.springframework:spring-web" }
+spring-webmvc = { module = "org.springframework:spring-webmvc" }
+spring-webflux = { module = "org.springframework:spring-webflux" }
 jakarta-servlet-api = { module = "jakarta.servlet:jakarta.servlet-api" }
 jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmh" }
 jmh-generator = { module = "org.openjdk.jmh:jmh-generator-annprocess", version.ref = "jmh" }

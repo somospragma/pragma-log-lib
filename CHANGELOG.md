@@ -16,6 +16,19 @@ Cada release es un tag `vX.Y.Z` sobre la rama principal: el pipeline lo construy
 
 ### Corregido
 
+## [1.0.1] - 2026-11-11
+
+### Cambiado
+
+- Spring Boot (MVC y WebFlux): el `http.response.body` del log de fin de request es el objeto que retorna el `@RestController`, así que aplican sus `@MaskedLogField`, como en Quarkus. Antes solo se enmascaraba por nombre de campo y por patrones, y un campo anotado con un nombre que no estuviera en `masking.fields` salía en claro. Los textos, binarios y respuestas de funciones (`RouterFunction`) se siguen logueando como bytes.
+- Spring Boot (MVC y WebFlux): cuando un request termina con una excepción no manejada (status 500 o mayor), el log de fin de request sale en `ERROR` con la excepción. Así el stack trace queda con `requestId` y el resto del contexto HTTP; el log que escribe el contenedor de esa misma excepción no lo tiene.
+
+### Corregido
+
+- El patrón `EMAIL` tardaba un tiempo cuadrático en textos largos sin `@`: un log de 100 KB tomaba más de un minuto y, con logging asíncrono, frenaba la escritura de los demás logs. Ahora recorre el texto una sola vez.
+- Spring Boot: los objetos de `@LogField` ignoraban las estrategias de `masking.strategies`; un campo con `MaskType.CUSTOM` salía enmascarado completo.
+- Documentación: en el `application.properties` de Quarkus, una regex de `masking.patterns` necesita `\\\\` por cada `\`. Y `scan="true"` solo sirve con un `logback.xml` en disco.
+
 ## [1.0.0] - 2026-11-11
 
 Reescritura completa de la librería. No es compatible con la v1: ver "Migración desde la v1" más abajo.

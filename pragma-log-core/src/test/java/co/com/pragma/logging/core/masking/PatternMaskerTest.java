@@ -3,6 +3,9 @@ package co.com.pragma.logging.core.masking;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
+
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -16,6 +19,27 @@ class PatternMaskerTest {
         assertThat(masker.mask("card 4111 1111 1111 1111.")).isEqualTo("card 4111 **** **** 1111.");
         assertThat(masker.mask("order 1234567890123456")).isEqualTo("order 1234567890123456"); // fails Luhn
         assertThat(masker.mask("uuid 2026-11-02 phone 3001234567")).isEqualTo("uuid 2026-11-02 phone 3001234567");
+    }
+
+    @Test
+    void emailPatternTakesLinearTimeOnLongTextWithoutAt() {
+        PatternMasker masker = PatternMasker.of(List.of("EMAIL"), '*');
+        String noAt = "a".repeat(200_000) + " " + "b.c-d_e".repeat(30_000);
+
+        assertTimeoutPreemptively(Duration.ofSeconds(2), () -> assertThat(masker.mask(noAt)).isEqualTo(noAt));
+        String many = "x ana@acme.com ".repeat(20_000);
+        assertTimeoutPreemptively(Duration.ofSeconds(2),
+                () -> assertThat(masker.mask(many)).doesNotContain("ana@").contains("a**@acme.com"));
+    }
+
+    @Test
+    void emailPatternBoundaries() {
+        PatternMasker masker = PatternMasker.of(List.of("EMAIL"), '*');
+
+        assertThat(masker.mask("to <ana.p+tag@mail.acme.co.uk>.")).isEqualTo("to <a********@mail.acme.co.uk>.");
+        assertThat(masker.mask("mailto:bo@acme.com, end")).isEqualTo("mailto:b*@acme.com, end");
+        assertThat(masker.mask("write to bo@acme.com.")).isEqualTo("write to b*@acme.com.");
+        assertThat(masker.mask("user@localhost and a@b.c and @acme.com")).isEqualTo("user@localhost and a@b.c and @acme.com");
     }
 
     @Test

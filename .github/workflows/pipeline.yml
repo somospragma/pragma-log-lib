@@ -90,8 +90,8 @@ jobs:
           name: pmd-report
           path: '**/build/reports/pmd/'
 
-  # Reports to SonarCloud but does not gate Security/Publish yet: the organization's SONAR_TOKEN
-  # is rejected ("Not authorized or organization not found"). Add sonar to the needs below once it works.
+  # Reports to SonarCloud but does not gate Security/Publish yet: the quality gate still fails on main.
+  # Add sonar to the needs below once the gate passes.
   sonar:
     name: SonarCloud
     runs-on: ubuntu-latest

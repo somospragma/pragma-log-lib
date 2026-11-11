@@ -58,6 +58,10 @@ public class PragmaLogContextWebFilter implements WebFilter {
                 ? new BodyBuffer(bodies.maxSize())
                 : null;
         BodyBuffer responseBody = bodies.enabled() && bodies.response() ? new BodyBuffer(bodies.maxSize()) : null;
+        ResponseBodyObject responseObject = responseBody != null ? new ResponseBodyObject() : null;
+        if (responseObject != null) {
+            exchange.getAttributes().put(ResponseBodyObject.ATTRIBUTE, responseObject);
+        }
         ServerWebExchange captured = requestBody == null && responseBody == null
                 ? exchange
                 : exchange.mutate()
@@ -68,10 +72,10 @@ public class PragmaLogContextWebFilter implements WebFilter {
 
         Mono<Void> handled = chain.filter(captured)
                 .doOnSuccess(done -> completionLog.write(context, status(exchange), start,
-                        bodies(bodies, exchange, requestBody, responseBody)))
+                        bodies(bodies, exchange, requestBody, responseBody, responseObject)))
                 // Error handlers set the final status after the filters: take it from the exception.
                 .doOnError(error -> completionLog.write(context, status(error), start,
-                        bodies(bodies, exchange, requestBody, null)))
+                        bodies(bodies, exchange, requestBody, null, null), error))
                 .doOnCancel(() -> completionLog.write(context, null, start));
         return handled.contextWrite(reactorContext -> reactorContext.put(PragmaMdcThreadLocalAccessor.KEY, context));
     }
@@ -104,7 +108,7 @@ public class PragmaLogContextWebFilter implements WebFilter {
     }
 
     private static Map<String, Object> bodies(HttpBodyCapture bodies, ServerWebExchange exchange,
-            BodyBuffer requestBody, BodyBuffer responseBody) {
+            BodyBuffer requestBody, BodyBuffer responseBody, ResponseBodyObject responseObject) {
         Map<String, Object> captured = new LinkedHashMap<>();
         if (requestBody != null) {
             putIfPresent(captured, HttpLogContext.REQUEST_BODY, bodies.value(requestBody.bytes(), requestBody.total(),
@@ -112,8 +116,10 @@ public class PragmaLogContextWebFilter implements WebFilter {
         }
         String responseType = contentType(exchange.getResponse().getHeaders());
         if (responseBody != null && bodies.captures(responseType)) {
-            putIfPresent(captured, HttpLogContext.RESPONSE_BODY,
-                    bodies.value(responseBody.bytes(), responseBody.total(), responseType));
+            Object object = responseObject != null ? responseObject.value() : null;
+            // The returned object is masked by its annotations; its bytes only by field names and patterns.
+            putIfPresent(captured, HttpLogContext.RESPONSE_BODY, object != null ? object
+                    : bodies.value(responseBody.bytes(), responseBody.total(), responseType));
         }
         return captured;
     }

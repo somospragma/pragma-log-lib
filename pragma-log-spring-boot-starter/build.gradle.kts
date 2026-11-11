@@ -14,6 +14,8 @@ dependencies {
     compileOnly(platform(libs.spring.boot.bom))
     compileOnly(libs.spring.boot.autoconfigure)
     compileOnly(libs.spring.web)
+    compileOnly(libs.spring.webmvc)
+    compileOnly(libs.spring.webflux)
     compileOnly(libs.jakarta.servlet.api)
     compileOnly(libs.reactor.core)
     annotationProcessor(platform(libs.spring.boot.bom))
