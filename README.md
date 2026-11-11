@@ -2,7 +2,7 @@
 
 Librería de logging estructurado para servicios Java de Pragma. Sigues usando SLF4J (`log.info(...)`) y la librería produce logs JSON homogéneos, enriquecidos y con datos sensibles enmascarados.
 
-> **Estado:** relanzamiento v2 en construcción (`0.1.0-SNAPSHOT`). Todavía no hay una versión publicada.
+> **Versión actual:** `1.0.0` en Maven Central (`co.com.pragma.logging`). Licencia [Apache 2.0](LICENSE).
 > Requerimientos y decisiones: [docs/relanzamiento](docs/relanzamiento/).
 > La implementación anterior está en las ramas `legacy/libs` y `legacy/nexus`.
 
@@ -12,7 +12,7 @@ Solo la dependencia. No hace falta `logback-spring.xml`:
 
 ```kotlin
 dependencies {
-    implementation("co.com.pragma.logging:pragma-log-spring-boot-starter:0.1.0-SNAPSHOT")
+    implementation("co.com.pragma.logging:pragma-log-spring-boot-starter:1.0.0")
 }
 ```
 
@@ -89,7 +89,7 @@ Solo la dependencia:
 
 ```kotlin
 dependencies {
-    implementation("co.com.pragma.logging:pragma-log-quarkus:0.1.0-SNAPSHOT")
+    implementation("co.com.pragma.logging:pragma-log-quarkus:1.0.0")
 }
 ```
 
@@ -117,7 +117,7 @@ pragma.log.timestamp.zone=America/Bogota
 
 ```kotlin
 dependencies {
-    implementation("co.com.pragma.logging:pragma-log-logback:0.1.0-SNAPSHOT")
+    implementation("co.com.pragma.logging:pragma-log-logback:1.0.0")
 }
 ```
 

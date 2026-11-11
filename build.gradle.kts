@@ -7,8 +7,8 @@ plugins {
 sonar {
     properties {
         property("sonar.host.url", "https://sonarcloud.io")
-        property("sonar.organization", providers.environmentVariable("SONAR_ORGANIZATION").getOrElse("somospragma"))
-        property("sonar.projectKey", providers.environmentVariable("SONAR_PROJECT_KEY").getOrElse("somospragma_pragma-log-lib"))
+        property("sonar.organization", providers.environmentVariable("SONAR_ORGANIZATION").filter { it.isNotBlank() }.getOrElse("somospragma"))
+        property("sonar.projectKey", providers.environmentVariable("SONAR_PROJECT_KEY").filter { it.isNotBlank() }.getOrElse("somospragma_pragma-log-lib"))
         property("sonar.projectName", "pragma-log-lib")
         // Fails the build when the quality gate fails, like the rest of the Quality stage.
         property("sonar.qualitygate.wait", "true")
