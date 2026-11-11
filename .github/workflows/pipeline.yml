@@ -90,12 +90,12 @@ jobs:
           name: pmd-report
           path: '**/build/reports/pmd/'
 
-  # Reports to SonarCloud but does not gate Security/Publish yet: the quality gate still fails on main.
-  # Add sonar to the needs below once the gate passes.
+  # Only on main and on v* tags: the organization's SonarCloud plan does not give the quality gate of other
+  # branches, so on a PR the job would always fail. It gates Publish, which runs only for tags.
   sonar:
     name: SonarCloud
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -224,7 +224,7 @@ jobs:
   # ---------------------------------------------------------- Approval + Publish (CD)
   publish:
     name: Publish to Maven Central
-    needs: build
+    needs: [build, sonar]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     # Approval: the maven-central environment waits for a required reviewer (Settings → Environments)
