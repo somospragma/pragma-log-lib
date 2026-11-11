@@ -22,7 +22,7 @@ final class ResponseBodyObject {
     /** Elements kept from a {@code Flux} body; more are summarized in a final marker. */
     static final int MAX_ELEMENTS = 100;
 
-    private volatile Object value;
+    private Object value;
     private List<Object> elements;
     private int dropped;
 
@@ -33,7 +33,7 @@ final class ResponseBodyObject {
                 && !body.getClass().getName().startsWith("reactor.core.publisher.");
     }
 
-    void set(Object body) {
+    synchronized void set(Object body) {
         value = loggable(body) ? body : null;
     }
 

@@ -399,7 +399,7 @@ Requiere JDK 17 o superior (JDK 21+ para correr Error Prone).
 
 | Etapa | Jobs | Local |
 |---|---|---|
-| **Quality** | Lint con Error Prone (JDK 21, advertencias como error) · Compilación en Java 17 · Tests en Java 17 y 21 con cobertura mínima por módulo (75%; 50% en `pragma-log-quarkus`, que se prueba sobre todo con la app de ejemplo) · Código muerto con PMD · Análisis y quality gate de SonarCloud (organización `somospragma`, proyecto `somospragma_pragma-log-lib`) · Tests en modo nativo de Quarkus | `./gradlew build boot3Test` |
+| **Quality** | Lint con Error Prone (JDK 21, advertencias como error) · Compilación en Java 17 · Tests en Java 17 y 21 con cobertura mínima por módulo (80%, como el quality gate de SonarCloud; 50% en `pragma-log-quarkus`, que se prueba sobre todo con la app de ejemplo y por eso SonarCloud suma la cobertura de `examples/quarkus` a los módulos de Quarkus) · Código muerto con PMD · Análisis y quality gate de SonarCloud (organización `somospragma`, proyecto `somospragma_pragma-log-lib`) · Tests en modo nativo de Quarkus | `./gradlew build boot3Test` |
 | **Security** | Dependencias con OSV-Scanner (lo que cada módulo publica) · Secretos con gitleaks (todo el historial) · SAST con SpotBugs + FindSecBugs | ver abajo |
 | **Build** | Jars, sources, javadoc y POMs de los 7 módulos, como artefacto `maven-artifacts` | `./gradlew publishToMavenLocal -Dmaven.repo.local=$PWD/build/m2` |
 | **Approval** | Solo con tags `v*`: el environment `maven-central` espera la aprobación de un revisor (Actions → el run → *Review deployments*) | — |
@@ -428,4 +428,16 @@ docker run --rm -v "$PWD":/repo ghcr.io/gitleaks/gitleaks:v8.30.1 git /repo --re
 - Las excepciones aceptadas están en `config/spotbugs/exclude.xml` y `.gitleaksignore`, cada una con su motivo.
 - Las reglas de código muerto están en `config/pmd/dead-code.xml`.
 - Las actions y las imágenes Docker del pipeline están fijadas por digest.
+
+### Verificación de dependencias
+
+Gradle verifica el SHA-256 de cada dependencia y plugin contra `gradle/verification-metadata.xml`: si un artefacto no está ahí o su checksum cambió, el build falla. Al agregar o subir una dependencia, regenera el archivo corriendo las mismas tareas del pipeline y revisa el diff antes del commit:
+
+```bash
+./gradlew --write-verification-metadata sha256 --no-configuration-cache \
+  compileJava compileTestJava test boot3Test jacocoTestReport jacocoTestCoverageVerification :examples:plain-java:run \
+  pmdMain spotbugsMain sonarResolver resolveShippedDependencies \
+  publishToMavenLocal -Dmaven.repo.local="$PWD/build/m2" \
+  :examples:quarkus:testNative -Dquarkus.native.enabled=true -Dquarkus.native.container-build=true -Dquarkus.package.jar.enabled=false
+```
 

@@ -23,3 +23,18 @@ listOf(":examples", ":examples:plain-java", ":examples:spring-mvc", ":examples:s
     ":examples:quarkus", ":benchmarks").forEach { path ->
     project(path) { sonar { isSkipProject = true } }
 }
+
+// The Quarkus extension runs only inside a Quarkus app, so most of it is tested by the examples/quarkus tests. The
+// reports SonarCloud reads also count that coverage when those tests ran in the same build, as in the pipeline's
+// `./gradlew test sonar`; a plain `test` of these modules does not run them.
+listOf(":pragma-log-quarkus", ":pragma-log-quarkus-deployment", ":pragma-log-quarkus-slf4j").forEach { path ->
+    project(path) {
+        tasks.withType<JacocoReport>().matching { it.name == "jacocoTestReport" }.configureEach {
+            val example = project(":examples:quarkus")
+            mustRunAfter(":examples:quarkus:test")
+            executionData.from(example.layout.buildDirectory.file("jacoco/test.exec").map { file ->
+                listOf(file.asFile).filter { it.exists() }
+            })
+        }
+    }
+}

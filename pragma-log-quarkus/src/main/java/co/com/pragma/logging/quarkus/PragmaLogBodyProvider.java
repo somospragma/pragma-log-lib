@@ -15,6 +15,7 @@ import jakarta.ws.rs.ext.ReaderInterceptor;
 import jakarta.ws.rs.ext.ReaderInterceptorContext;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Captures request and response bodies of Quarkus REST endpoints for the completion log (ENR-04), when
@@ -27,13 +28,15 @@ import java.io.IOException;
 public class PragmaLogBodyProvider implements ReaderInterceptor, ContainerResponseFilter {
 
     /** Looked up on first use: Quarkus REST creates providers before the runtime configuration exists. */
-    @Inject
-    Instance<PragmaLogConfig> config;
+    private final Instance<PragmaLogConfig> config;
+    private final CurrentVertxRequest request;
+    private final AtomicReference<HttpBodyCapture> capture = new AtomicReference<>();
 
     @Inject
-    CurrentVertxRequest request;
-
-    private volatile HttpBodyCapture capture;
+    PragmaLogBodyProvider(Instance<PragmaLogConfig> config, CurrentVertxRequest request) {
+        this.config = config;
+        this.request = request;
+    }
 
     @Override
     public Object aroundReadFrom(ReaderInterceptorContext context) throws IOException {
@@ -64,7 +67,7 @@ public class PragmaLogBodyProvider implements ReaderInterceptor, ContainerRespon
     }
 
     private HttpBodyCapture capture() {
-        HttpBodyCapture current = capture;
+        HttpBodyCapture current = capture.get();
         if (current == null) {
             PragmaLogConfig settings = config.get();
             PragmaLogConfig.Body body = settings.http().body();
@@ -72,7 +75,8 @@ public class PragmaLogBodyProvider implements ReaderInterceptor, ContainerRespon
                     ? new HttpBodyCapture(body.request(), body.response(), Math.toIntExact(body.maxSize().asLongValue()),
                             body.contentTypes())
                     : HttpBodyCapture.none();
-            capture = current;
+            capture.compareAndSet(null, current);
+            current = capture.get();
         }
         return current;
     }

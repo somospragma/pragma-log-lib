@@ -10,6 +10,7 @@ import jakarta.interceptor.Interceptor;
 import jakarta.interceptor.InvocationContext;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import org.jboss.logmanager.MDC;
 
 /**
@@ -24,10 +25,13 @@ public class LogEnrichmentInterceptor {
 
     private static final boolean MUTINY = present("io.smallrye.mutiny.Uni");
 
-    @Inject
-    PragmaLogConfig config;
+    private final PragmaLogConfig config;
+    private final AtomicReference<LogMasker> masker = new AtomicReference<>();
 
-    private volatile LogMasker masker;
+    @Inject
+    LogEnrichmentInterceptor(PragmaLogConfig config) {
+        this.config = config;
+    }
 
     @AroundInvoke
     Object enrich(InvocationContext invocation) throws Exception {
@@ -63,10 +67,10 @@ public class LogEnrichmentInterceptor {
     }
 
     private LogMasker masker() {
-        LogMasker current = masker;
+        LogMasker current = masker.get();
         if (current == null) {
-            current = new LogMasker(PragmaLogRecorder.masking(config.masking()));
-            masker = current;
+            masker.compareAndSet(null, new LogMasker(PragmaLogRecorder.masking(config.masking())));
+            current = masker.get();
         }
         return current;
     }
