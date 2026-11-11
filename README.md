@@ -3,8 +3,8 @@
 Librería de logging estructurado para servicios Java de Pragma. Sigues usando SLF4J (`log.info(...)`) y la librería produce logs JSON homogéneos, enriquecidos y con datos sensibles enmascarados.
 
 > **Versión actual:** `1.0.0` en Maven Central (`co.com.pragma.logging`). Licencia [Apache 2.0](LICENSE).
+> **Documentación completa:** [Pragma Hub](https://somospragma.github.io/backend-architecture-design-site-docs/artifacts/pragma-log/), con guías por framework y la referencia de todas las opciones.
 > Requerimientos y decisiones: [docs/relanzamiento](docs/relanzamiento/).
-> La implementación anterior está en las ramas `legacy/libs` y `legacy/nexus`.
 
 ## Uso rápido (Spring Boot 3.5+ / 4.x, MVC y WebFlux)
 
