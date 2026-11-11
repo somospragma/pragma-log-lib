@@ -90,9 +90,12 @@ jobs:
           name: pmd-report
           path: '**/build/reports/pmd/'
 
+  # Reports to SonarCloud but does not gate Security/Publish yet: the organization's SONAR_TOKEN
+  # is rejected ("Not authorized or organization not found"). Add sonar to the needs below once it works.
   sonar:
     name: SonarCloud
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -145,7 +148,7 @@ jobs:
   # ---------------------------------------------------------------- Security (CI)
   dependency-audit:
     name: Dependency audit (OSV-Scanner)
-    needs: [lint, typecheck, test, dead-code, sonar, native]
+    needs: [lint, typecheck, test, dead-code, native]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -166,7 +169,7 @@ jobs:
 
   secret-scan:
     name: Secret scan (gitleaks)
-    needs: [lint, typecheck, test, dead-code, sonar, native]
+    needs: [lint, typecheck, test, dead-code, native]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -177,7 +180,7 @@ jobs:
 
   sast:
     name: SAST (SpotBugs + FindSecBugs)
-    needs: [lint, typecheck, test, dead-code, sonar, native]
+    needs: [lint, typecheck, test, dead-code, native]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
